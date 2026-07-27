@@ -26,6 +26,14 @@ export interface TranslatedArticle {
   language: string;
 }
 
+const MAX_CONTENT_LENGTH = 8000;
+
+function sanitizeInput(input: string): string {
+  return input
+    .slice(0, MAX_CONTENT_LENGTH)
+    .replace(/[<>{}"]/g, '');
+}
+
 export const geminiService = {
   async generateSummary(
     articleId: string,
@@ -43,6 +51,9 @@ export const geminiService = {
     }
 
     console.log(`[Gemini AI] Generating summary for article "${articleTitle}" in language ${language}`);
+
+    const safeTitle = sanitizeInput(articleTitle);
+    const safeContent = sanitizeInput(articleContent);
 
     // If Gemini API Key is missing, generate structured summary
     if (!config.geminiApiKey) {
@@ -65,7 +76,6 @@ export const geminiService = {
         language,
       };
 
-      await db.saveSummary({ ...fallbackSummary, article_id: cacheKey });
       return fallbackSummary;
     }
 
@@ -85,9 +95,12 @@ export const geminiService = {
           : 'Output in English.';
 
       const prompt = `Analyze this news article and provide a high-value concise intelligence summary:
-Title: ${articleTitle}
+Title: ${safeTitle}
 URL: ${articleUrl}
-Content snippet: ${articleContent}
+Content snippet:
+"""ARTICLE_CONTENT"""
+${safeContent}
+"""END_ARTICLE_CONTENT"""
 
 Language Rule: ${langInstruction}
 
@@ -101,7 +114,7 @@ Requirements:
   - key_entities: Array of 3 prominent companies, locations, or key subjects mentioned.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: config.geminiModel,
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -170,7 +183,6 @@ Requirements:
         },
         language,
       };
-      await db.saveSummary({ ...errSummary, article_id: cacheKey });
       return errSummary;
     }
   },
@@ -201,17 +213,24 @@ Requirements:
         },
       });
 
+      const safeTitle = sanitizeInput(title);
+      const safeDescription = sanitizeInput(description);
+      const safeContent = sanitizeInput(content);
+
       const prompt = `Translate the following news article title, description, and main body text into language code "${targetLanguage}".
 Keep publisher brand names, proper names of people, and URLs unchanged.
 
-Title: ${title}
-Description: ${description}
-Content: ${content}
+Title: ${safeTitle}
+Description: ${safeDescription}
+Content:
+"""ARTICLE_CONTENT"""
+${safeContent}
+"""END_ARTICLE_CONTENT"""
 
 Return JSON with keys: "translatedTitle", "translatedDescription", "translatedContent".`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.6-flash',
+        model: config.geminiModel,
         contents: prompt,
         config: {
           responseMimeType: 'application/json',

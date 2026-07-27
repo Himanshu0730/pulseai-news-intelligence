@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { config } from '../config.js';
 import { db } from '../db/index.js';
 import { CuratedRSSProvider } from './CuratedRSSProvider.js';
@@ -33,28 +34,45 @@ export class NewsService {
   }
 
   /**
-   * Execute fetch with provider fallback chain
+   * Execute fetch across all providers in parallel, merge and deduplicate results
    */
-  private async executeWithFallback<T>(operation: (provider: NewsProvider) => Promise<T>): Promise<T> {
-    let lastError: any = null;
-
-    for (const provider of this.providers) {
-      try {
+  private async executeWithFallback<T extends Article[]>(operation: (provider: NewsProvider) => Promise<T>): Promise<T> {
+    const settled = await Promise.allSettled(
+      this.providers.map(async (provider) => {
         const result = await operation(provider);
+        return { provider, result };
+      })
+    );
+
+    const merged: Article[] = [];
+    const seen = new Set<string>();
+
+    // Collect results in provider priority order (NewsAPI > GNews > RSS)
+    for (const outcome of settled) {
+      if (outcome.status === 'fulfilled') {
+        const { provider, result } = outcome.value;
         if (Array.isArray(result) && result.length > 0) {
-          return result;
+          let added = 0;
+          for (const article of result) {
+            const dedupeKey = article.url || article.title;
+            if (!seen.has(dedupeKey)) {
+              seen.add(dedupeKey);
+              merged.push(article);
+              added++;
+            }
+          }
+          console.log(`[NewsService] Provider ${provider.name} contributed ${added} articles (${result.length} total)`);
         }
-      } catch (err) {
-        console.warn(`[NewsService] Provider ${provider.name} failed:`, (err as Error).message);
-        lastError = err;
+      } else {
+        console.warn('[NewsService] Provider failed:', (outcome.reason as Error)?.message);
       }
     }
 
-    if (lastError) {
-      console.warn('[NewsService] Primary providers unavailable. Utilizing Curated Live RSS fallback.');
+    if (merged.length === 0) {
+      console.warn('[NewsService] All providers returned no articles.');
     }
-    const fallback = new CuratedRSSProvider();
-    return operation(fallback);
+
+    return merged as T;
   }
 
   /**
@@ -85,19 +103,19 @@ export class NewsService {
     // 1. Interest Match (0 - 100)
     let interestMatch = 0;
     let matchedInterest = '';
+    let matchedCount = 0;
+    let categoryMatch = false;
     interests.forEach((interest) => {
       const iLower = interest.toLowerCase();
       if (text.includes(iLower)) {
-        interestMatch = Math.max(interestMatch, 95);
+        matchedCount++;
         if (!matchedInterest) matchedInterest = interest;
-      } else {
-        // Partial category match
-        if (article.category?.toLowerCase() === iLower) {
-          interestMatch = Math.max(interestMatch, 80);
-          if (!matchedInterest) matchedInterest = interest;
-        }
+      } else if (article.category?.toLowerCase() === iLower) {
+        categoryMatch = true;
+        if (!matchedInterest) matchedInterest = interest;
       }
     });
+    interestMatch = Math.min(100, matchedCount * 30 + (categoryMatch ? 20 : 0));
 
     // 2. Implicit Interaction Topic Match (0 - 100)
     let topicMatch = 0;
@@ -325,7 +343,7 @@ export class NewsService {
   ): Promise<{ articles: ScoredArticle[]; activeProvider: string }> {
     const interactionTopics = userId ? await db.getUserInteractionTopics(userId) : {};
 
-    const cacheKey = `personalized_feed_${interests.sort().join('_')}_${userId || 'guest'}_${scope || 'all'}`;
+    const cacheKey = `personalized_feed_${crypto.createHash('md5').update(JSON.stringify(interests.sort())).digest('hex')}_${userId || 'guest'}_${scope || 'all'}`;
     const cached = await db.getCachedNews(cacheKey);
     if (cached) {
       return cached;
@@ -434,7 +452,7 @@ export class NewsService {
 
     // Calculate real trending scores based on headline frequency + freshness + source count
     const wordFreq: Record<string, number> = {};
-    const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'in', 'of', 'to', 'for', 'with', 'on', 'at', 'from', 'by', 'is', 'are', 'was', 'were', 'new', 'how', 'why', 'what', 'india']);
+    const stopWords = new Set(["says", "report", "after", "before", "during", "while", "because", "since", "according", "official", "sources", "claimed", "told", "added", "stated", "announced", "confirmed", "revealed", "expected", "likely", "may", "might", "could", "would", "will", "about", "over", "under", "between", "among", "through", "during", "before", "after", "above", "below", "up", "down", "out", "off", "over", "under", "again", "further", "then", "once", "here", "there", "when", "where", "why", "how", "all", "any", "both", "each", "few", "more", "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than", "too", "very", "just", "now", "also", "back", "being", "did", "does", "doing", "don", "had", "has", "having", "him", "his", "how", "its", "our", "out", "own", "same", "she", "should", "that", "their", "them", "then", "there", "these", "they", "this", "those", "through", "too", "under", "until", "very", "was", "were", "what", "when", "where", "which", "while", "who", "whom", "why", "with", "would", "you", "your", "yours", "yourself", "yourselves", "the", "a", "an", "and", "or", "in", "of", "to", "for", "with", "on", "at", "from", "by", "is", "are", "was", "were", "new", "india"]);
 
     scopedRaw.forEach((article) => {
       const words = article.title

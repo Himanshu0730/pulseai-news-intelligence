@@ -34,22 +34,34 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-  const data = await response.json().catch(() => ({}));
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
 
-  if (!response.ok) {
-    if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
-      // Clear token on 401
-      localStorage.removeItem('pulse_token');
+    clearTimeout(timeoutId);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
+        localStorage.removeItem('pulse_token');
+      }
+      throw new ApiError(data.error || 'Request failed', response.status, data.code, data.limitType);
     }
-    throw new ApiError(data.error || 'Request failed', response.status, data.code, data.limitType);
-  }
 
-  return data as T;
+    return data as T;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new ApiError('Request timed out', 408, 'TIMEOUT');
+    }
+    throw err;
+  }
 }
 
 export const api = {

@@ -39,4 +39,6 @@ export const config = {
   guestArticleLimit: parseInt(process.env.GUEST_ARTICLE_LIMIT || '10', 10),
   guestSearchLimit: parseInt(process.env.GUEST_SEARCH_LIMIT || '5', 10),
   guestAiLimit: parseInt(process.env.GUEST_AI_LIMIT || '3', 10),
+  geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+  guestSalt: process.env.GUEST_SALT || 'pulse-default-salt-2026',
 };
