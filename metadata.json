@@ -1,0 +1,6 @@
+{
+  "name": "PulseAI - Personalized News Intelligence",
+  "description": "AI-powered news platform with personalized feed, multi-provider resilience, Gemini summaries, trending topics, search, and bookmarks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
