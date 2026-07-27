@@ -185,5 +185,3 @@ Verify backend health at:
 
 - **API Secrets**: All API keys (`GEMINI_API_KEY`, `NEWS_API_KEY`, `GNEWS_API_KEY`, `DATABASE_URL`) are kept strictly server-side and never exposed to the browser.
 - **Git Hygiene**: `.env` and `.data_store.json` files are excluded via `.gitignore`.
-#   p u l s e a i - n e w s - i n t e l l i g e n c e  
- 
