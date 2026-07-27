@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Bookmark,
   Globe,
@@ -38,6 +38,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { theme, toggleTheme } = useTheme();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -45,6 +46,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     onSearchChange(localSearch);
     if (activeView !== 'feed') {
       onViewChange('feed');
@@ -53,6 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleClearSearch = () => {
     setLocalSearch('');
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     onSearchChange('');
   };
 
@@ -141,8 +144,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 placeholder={t('searchPlaceholder')}
                 value={localSearch}
                 onChange={(e) => {
-                  setLocalSearch(e.target.value);
-                  onSearchChange(e.target.value);
+                  const value = e.target.value;
+                  setLocalSearch(value);
+                  if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+                  debounceTimerRef.current = setTimeout(() => {
+                    onSearchChange(value);
+                  }, 300);
                 }}
                 className="w-full pl-9 pr-8 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm rounded-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
               />

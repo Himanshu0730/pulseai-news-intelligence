@@ -10,7 +10,7 @@ import { api } from '../api/client';
 
 export const BookmarksPage: React.FC = () => {
   const { bookmarks, isLoading } = useBookmarks();
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [selectedArticleDetail, setSelectedArticleDetail] = useState<Article | null>(null);
 
@@ -46,6 +46,7 @@ export const BookmarksPage: React.FC = () => {
         title: article.title,
         content: article.content || article.description,
         url: article.url,
+        language,
       });
       setSummaryData(res.summary);
     } catch (err) {

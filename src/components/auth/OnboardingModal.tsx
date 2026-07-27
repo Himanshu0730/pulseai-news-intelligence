@@ -49,7 +49,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
     setIsSaving(true);
     try {
       if (token) {
-        await api.put('/user/interests', { interests: selected });
+        await api.put('/users/interests', { interests: selected });
       } else {
         localStorage.setItem('guest_interests', JSON.stringify(selected));
       }

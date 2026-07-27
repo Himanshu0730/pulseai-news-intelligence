@@ -145,7 +145,7 @@ To configure persistent PostgreSQL storage on Supabase:
 | `GUEST_AI_LIMIT` | Max AI summaries/translations per guest per day (default: `3`) | Server-side | Optional |
 | `NODE_ENV` | Environment mode (`development` or `production`) | Server-side | Required |
 | `PORT` | Web server port (default: `3000`) | Server-side | Required |
-| `FRONTEND_ORIGIN` | CORS allowed origins, e.g. `https://your-app.vercel.app` | Server-side | Optional |
+| `FRONTEND_ORIGIN` | CORS allowed origins, e.g. `https://your-app.vercel.app` | Server-side | Required in production |
 | `VITE_API_BASE_URL` | API base URL override for split client/server setups | Client-side | Optional |
 
 ---

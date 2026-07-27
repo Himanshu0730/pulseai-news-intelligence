@@ -98,6 +98,11 @@ if (config.databaseUrl) {
       pool = new pg.Pool({
         connectionString: config.databaseUrl,
         ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : false,
+        max: 10,
+        // Fail fast instead of hanging if the DB is unreachable.
+        connectionTimeoutMillis: 5000,
+        // Recycle idle clients so a stuck connection can't sit in the pool forever.
+        idleTimeoutMillis: 30000,
       });
       globalThis.__pulse_pg_pool = pool;
       console.log('[DB] Configured PostgreSQL Pool');
@@ -110,7 +115,7 @@ if (config.databaseUrl) {
 
   if (pool && !globalThis.__pulse_db_initialized) {
     globalThis.__pulse_db_initialized = true;
-    initDatabase();
+    initDatabase().catch(() => {});
   }
 } else if (config.nodeEnv === 'production') {
   console.error('[DB] CRITICAL WARNING: DATABASE_URL is not set in production! Persistent PostgreSQL database is required.');
@@ -199,7 +204,10 @@ async function initDatabase() {
 
     console.log('[DB] Database tables initialized and verified.');
   } catch (err) {
-    console.warn('[DB] Failed to initialize PostgreSQL tables:', err);
+    console.warn('[DB] PostgreSQL unreachable — falling back to local file store (.data_store.json).');
+    console.warn('[DB] To use PostgreSQL, ensure DATABASE_URL is correct and the server is accessible.');
+    pool = null;
+    globalThis.__pulse_pg_pool = null;
   }
 }
 

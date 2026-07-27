@@ -28,7 +28,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
 
   const logInteraction = (topic?: string) => {
     if (topic) {
-      api.post('/user/interaction', { topic }).catch(() => {});
+      api.post('/users/interaction', { topic }).catch(() => {});
     }
   };
 
