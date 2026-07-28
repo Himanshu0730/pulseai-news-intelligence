@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # PulseAI — News Intelligence Platform
 
 ![Status](https://img.shields.io/badge/status-active-success)
@@ -22,12 +23,18 @@ PulseAI is an India-first, AI-powered personalized news intelligence platform. I
 - [Health Check API](#-health-check-api)
 - [Security Notes](#-security-notes)
 - [License](#license)
+=======
+# PulseAI — News Intelligence Platform 
 
+PulseAI is an  AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
+>>>>>>> 359b28141d1fc29aa34887210336a70a47936480
+
+🔗 **Live Demo:** [https://pulseai-news-intelligence.vercel.app/)
 ---
 
 ## 🌟 Key Features
 
-- 🇮🇳 **India-First Geographic Intelligence**: Filter coverage across **India**, **World**, or **All** feeds with automatic priority ranking for Indian national developments, technology, startup ecosystems, and public policy.
+- 🇮🇳 **Geographic Intelligence**: Filter coverage across **India**, **World**, or **All** feeds with automatic priority ranking for Indian national developments, technology, startup ecosystems, and public policy.
 - 👤 **Controlled Guest Reading Experience**: Unauthenticated users can browse news and read articles up to daily limits (`10` articles, `5` searches, `3` AI summaries per day). Limits are enforced on both server-side API middleware and client-side context.
 - 🎯 **Deterministic Personalization**: User interest scoring ranks feed content dynamically based on category preferences, topic interaction decay, and freshness signals without obscuring non-preferred topics.
 - 🔥 **Real-Time Trending Engine**: Dedicated trending feed identifying breaking developments and high-velocity news clusters independently from user personalization filters.
