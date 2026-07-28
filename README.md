@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # PulseAI — News Intelligence Platform
 
 ![Status](https://img.shields.io/badge/status-active-success)
@@ -22,15 +21,13 @@ PulseAI is an India-first, AI-powered personalized news intelligence platform. I
 - [Deploying to Vercel](#-deploying-to-vercel)
 - [Health Check API](#-health-check-api)
 - [Security Notes](#-security-notes)
-- [License](#license)
-=======
-# PulseAI — News Intelligence Platform 
+- # [License](#license)
 
-PulseAI is an  AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
->>>>>>> 359b28141d1fc29aa34887210336a70a47936480
+# PulseAI — News Intelligence Platform
 
-🔗 **Live Demo:** [https://pulseai-news-intelligence.vercel.app/)
----
+PulseAI is an AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
+
+## 🔗 **Live Demo:** [https://pulseai-news-intelligence.vercel.app/)
 
 ## 🌟 Key Features
 
@@ -229,9 +226,6 @@ Verify backend health at:
 ## 🔐 Security Notes
 
 - **API Secrets**: All API keys (`GEMINI_API_KEY`, `NEWS_API_KEY`, `GNEWS_API_KEY`, `DATABASE_URL`) are kept strictly server-side and never exposed to the browser.
-<<<<<<< HEAD
-- **Git Hygiene**: `.env` and `.data_store.json` files are excluded via `.gitignore`.
-=======
 - **Git Hygiene**: `.env` and `.data_store.json` are excluded via `.gitignore`.
 
 ---
@@ -239,4 +233,3 @@ Verify backend health at:
 ## License
 
 This project is licensed under the MIT License. Add a `LICENSE` file to the repository root to make this official.
->>>>>>> 46019f4 (fixing some bugs)
