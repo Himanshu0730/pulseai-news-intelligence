@@ -1,4 +1,4 @@
-# PulseAI — India-First News Intelligence Platform 🇮🇳
+# PulseAI — News Intelligence Platform 🇮🇳
 
 PulseAI is an India-first AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
 
