@@ -95,7 +95,10 @@ export const geminiService = {
           : 'Output in English.';
 
       const prompt = `Analyze this news article and provide a high-value concise intelligence summary:
-Title: ${safeTitle}
+Title:
+"""TITLE"""
+${safeTitle}
+"""END_TITLE"""
 URL: ${articleUrl}
 Content snippet:
 """ARTICLE_CONTENT"""
@@ -220,12 +223,18 @@ Requirements:
       const prompt = `Translate the following news article title, description, and main body text into language code "${targetLanguage}".
 Keep publisher brand names, proper names of people, and URLs unchanged.
 
-Title: ${safeTitle}
-Description: ${safeDescription}
+Title:
+"""TITLE"""
+${safeTitle}
+"""END_TITLE"""
+Description:
+"""DESCRIPTION"""
+${safeDescription}
+"""END_DESCRIPTION"""
 Content:
-"""ARTICLE_CONTENT"""
+"""CONTENT"""
 ${safeContent}
-"""END_ARTICLE_CONTENT"""
+"""END_CONTENT"""
 
 Return JSON with keys: "translatedTitle", "translatedDescription", "translatedContent".`;
 

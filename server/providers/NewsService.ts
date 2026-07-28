@@ -1,7 +1,6 @@
 import crypto from 'crypto';
 import { config } from '../config.js';
 import { db } from '../db/index.js';
-import { CuratedRSSProvider } from './CuratedRSSProvider.js';
 import { GNewsProvider } from './GNewsProvider.js';
 import { NewsAPIProvider } from './NewsAPIProvider.js';
 import { Article, NewsProvider } from './types.js';
@@ -23,14 +22,12 @@ export class NewsService {
   private providers: NewsProvider[] = [];
 
   constructor() {
-    if (config.newsApiKey) {
-      this.providers.push(new NewsAPIProvider(config.newsApiKey));
-    }
     if (config.gnewsApiKey) {
       this.providers.push(new GNewsProvider(config.gnewsApiKey));
     }
-    // Always attach zero-config Curated Live RSS provider as resilient safety net
-    this.providers.push(new CuratedRSSProvider());
+    if (config.newsApiKey) {
+      this.providers.push(new NewsAPIProvider(config.newsApiKey));
+    }
   }
 
   /**
@@ -115,7 +112,7 @@ export class NewsService {
         if (!matchedInterest) matchedInterest = interest;
       }
     });
-    interestMatch = Math.min(100, matchedCount * 30 + (categoryMatch ? 20 : 0));
+    interestMatch = Math.min(100, matchedCount * 30);
 
     // 2. Implicit Interaction Topic Match (0 - 100)
     let topicMatch = 0;
