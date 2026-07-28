@@ -2,6 +2,7 @@
 
 PulseAI is an  AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
 
+🔗 **Live Demo:** [https://pulseai-news-intelligence.vercel.app/)
 ---
 
 ## 🌟 Key Features
