@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # PulseAI — News Intelligence Platform
 
 ![Status](https://img.shields.io/badge/status-active-success)
@@ -27,7 +26,6 @@ PulseAI is an India-first, AI-powered personalized news intelligence platform. I
 # PulseAI — News Intelligence Platform 
 
 PulseAI is an  AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
->>>>>>> 359b28141d1fc29aa34887210336a70a47936480
 
 🔗 **Live Demo:** [https://pulseai-news-intelligence.vercel.app/)
 ---
@@ -239,4 +237,3 @@ Verify backend health at:
 ## License
 
 This project is licensed under the MIT License. Add a `LICENSE` file to the repository root to make this official.
->>>>>>> 46019f4 (fixing some bugs)
