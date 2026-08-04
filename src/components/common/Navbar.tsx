@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bookmark,
   Globe,
@@ -9,13 +9,16 @@ import {
   Sun,
   User,
   X,
-  Sparkles,
+  Menu,
+  Home,
+  Flame,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useBookmarks } from '../../context/BookmarkContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { SUPPORTED_LANGUAGES } from '../../i18n/translations';
+import { PulseLogo } from './PulseLogo';
 
 interface NavbarProps {
   searchQuery: string;
@@ -38,7 +41,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const { theme, toggleTheme } = useTheme();
   const [localSearch, setLocalSearch] = useState(searchQuery);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     setLocalSearch(searchQuery);
@@ -46,7 +49,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     onSearchChange(localSearch);
     if (activeView !== 'feed') {
       onViewChange('feed');
@@ -55,8 +57,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const handleClearSearch = () => {
     setLocalSearch('');
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     onSearchChange('');
+  };
+
+  const handleMobileViewSelect = (view: 'landing' | 'feed' | 'india' | 'world' | 'trending' | 'bookmarks') => {
+    onViewChange(view);
+    setIsMobileMenuOpen(false);
   };
 
   const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === language) || SUPPORTED_LANGUAGES[0];
@@ -64,31 +70,21 @@ export const Navbar: React.FC<NavbarProps> = ({
   return (
     <header className="sticky top-0 z-40 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-3 sm:gap-4">
+        <div className="flex items-center justify-between h-16 gap-2 sm:gap-4">
           
           {/* Brand & Logo */}
-          <div className="flex items-center gap-4 lg:gap-6">
+          <div className="flex items-center gap-2 sm:gap-4 lg:gap-6 shrink-0">
             <button
               onClick={() => {
                 onViewChange('landing');
               }}
-              className="flex items-center gap-2.5 text-left group focus:outline-none cursor-pointer"
+              className="flex items-center text-left focus:outline-none cursor-pointer"
               title="Return to Public Landing Page"
             >
-              <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center font-serif font-bold text-white text-base shadow-sm group-hover:scale-105 transition-transform">
-                P
-              </div>
-              <div>
-                <span className="text-lg font-serif font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-1">
-                  Pulse<span className="text-sky-600 dark:text-sky-400 font-extrabold">AI</span>
-                </span>
-                <span className="hidden sm:block text-[10px] font-mono text-slate-500 dark:text-slate-400 tracking-wider uppercase">
-                  News Intelligence
-                </span>
-              </div>
+              <PulseLogo size="md" />
             </button>
 
-            {/* Nav Tabs */}
+            {/* Desktop Nav Tabs */}
             <nav className="hidden md:flex items-center gap-1">
               <button
                 onClick={() => onViewChange('feed')}
@@ -136,7 +132,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Search Bar */}
-          <form onSubmit={handleSearchSubmit} className="flex-1 max-w-sm relative">
+          <form onSubmit={handleSearchSubmit} className="flex-1 max-w-xs sm:max-w-sm relative">
             <div className="relative flex items-center">
               <Search className="w-3.5 h-3.5 absolute left-3 text-slate-400 pointer-events-none" />
               <input
@@ -144,20 +140,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 placeholder={t('searchPlaceholder')}
                 value={localSearch}
                 onChange={(e) => {
-                  const value = e.target.value;
-                  setLocalSearch(value);
-                  if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-                  debounceTimerRef.current = setTimeout(() => {
-                    onSearchChange(value);
-                  }, 300);
+                  setLocalSearch(e.target.value);
+                  onSearchChange(e.target.value);
                 }}
-                className="w-full pl-9 pr-8 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm rounded-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
+                className="w-full pl-8 sm:pl-9 pr-7 sm:pr-8 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm rounded-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
               />
               {localSearch && (
                 <button
                   type="button"
                   onClick={handleClearSearch}
-                  className="absolute right-2.5 text-slate-400 hover:text-slate-700 dark:hover:text-white p-0.5"
+                  className="absolute right-2 text-slate-400 hover:text-slate-700 dark:hover:text-white p-0.5"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -166,18 +158,18 @@ export const Navbar: React.FC<NavbarProps> = ({
           </form>
 
           {/* Right Actions & Utilities */}
-          <div className="flex items-center gap-2">
-            {/* Bookmarks Counter Button */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+            {/* Bookmarks Counter Button - Desktop & Tablet */}
             <button
               onClick={() => onViewChange('bookmarks')}
-              className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                 activeView === 'bookmarks'
                   ? 'bg-sky-50 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300 dark:border-sky-700'
                   : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
               }`}
               title={t('savedBookmarks')}
             >
-              <Bookmark className="w-3.5 h-3.5" />
+              <Bookmark className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               <span className="hidden lg:inline">{t('savedBookmarks')}</span>
               {bookmarks.length > 0 && (
                 <span className="px-1.5 py-0.2 text-[10px] font-bold bg-sky-600 text-white rounded-full">
@@ -190,11 +182,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="relative">
               <button
                 onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
                 title="Select Language"
               >
                 <Globe className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                <span className="hidden sm:inline font-mono uppercase">{currentLangObj.code}</span>
+                <span className="hidden sm:inline font-mono uppercase text-[11px]">{currentLangObj.code}</span>
               </button>
 
               {isLangMenuOpen && (
@@ -231,51 +223,196 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </button>
 
-            {/* User Profile / Auth Actions */}
-            {user ? (
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={onOpenProfile}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 text-xs font-medium hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
-                  title={t('adjustInterests')}
-                >
-                  <img
-                    src={user.avatarUrl}
-                    alt={user.name}
-                    className="w-4 h-4 rounded-full object-cover"
-                  />
-                  <span className="hidden xl:inline max-w-[100px] truncate">{user.name}</span>
-                  <SlidersHorizontal className="w-3 h-3 text-slate-500" />
-                </button>
+            {/* User Profile / Auth Actions - Desktop */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              {user ? (
+                <>
+                  <button
+                    onClick={onOpenProfile}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 text-xs font-medium hover:border-slate-300 dark:hover:border-slate-700 transition-colors cursor-pointer"
+                    title={t('adjustInterests')}
+                  >
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.name}
+                      className="w-4 h-4 rounded-full object-cover"
+                    />
+                    <span className="hidden xl:inline max-w-[100px] truncate">{user.name}</span>
+                    <SlidersHorizontal className="w-3 h-3 text-slate-500" />
+                  </button>
 
-                <button
-                  onClick={logout}
-                  className="p-2 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
-                  title={t('signOut')}
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
+                  <button
+                    onClick={logout}
+                    className="p-2 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
+                    title={t('signOut')}
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => openAuthModal('login')}
+                    className="px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  >
+                    {t('signIn')}
+                  </button>
+                  <button
+                    onClick={() => openAuthModal('register')}
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                  >
+                    <User className="w-3 h-3" />
+                    <span>{t('getStarted')}</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="md:hidden p-2 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 transition-colors cursor-pointer"
+              aria-label="Toggle navigation menu"
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile Navigation Drawer */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 px-4 pt-3 pb-5 space-y-3 shadow-xl">
+          <div className="grid grid-cols-2 gap-2 text-sm font-medium">
+            <button
+              onClick={() => handleMobileViewSelect('feed')}
+              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left cursor-pointer transition-colors ${
+                activeView === 'feed'
+                  ? 'bg-sky-50 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 font-semibold'
+                  : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <Home className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+              <span>Home Feed</span>
+            </button>
+
+            <button
+              onClick={() => handleMobileViewSelect('india')}
+              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left cursor-pointer transition-colors ${
+                activeView === 'india'
+                  ? 'bg-amber-50 dark:bg-amber-950/80 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800 font-semibold'
+                  : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <span className="text-base">🇮🇳</span>
+              <span>India News</span>
+            </button>
+
+            <button
+              onClick={() => handleMobileViewSelect('world')}
+              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left cursor-pointer transition-colors ${
+                activeView === 'world'
+                  ? 'bg-sky-50 dark:bg-sky-950/80 text-sky-800 dark:text-sky-300 border-sky-300 dark:border-sky-800 font-semibold'
+                  : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <span className="text-base">🌍</span>
+              <span>World News</span>
+            </button>
+
+            <button
+              onClick={() => handleMobileViewSelect('trending')}
+              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left cursor-pointer transition-colors ${
+                activeView === 'trending'
+                  ? 'bg-rose-50 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800 font-semibold'
+                  : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+              }`}
+            >
+              <Flame className="w-4 h-4 text-rose-500" />
+              <span>{t('trendingStories')}</span>
+            </button>
+          </div>
+
+          <button
+            onClick={() => handleMobileViewSelect('bookmarks')}
+            className={`w-full flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition-colors text-xs font-medium ${
+              activeView === 'bookmarks'
+                ? 'bg-sky-50 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 font-semibold'
+                : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Bookmark className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+              <span>{t('savedBookmarks')}</span>
+            </div>
+            {bookmarks.length > 0 && (
+              <span className="px-2 py-0.5 text-xs font-bold bg-sky-600 text-white rounded-full">
+                {bookmarks.length}
+              </span>
+            )}
+          </button>
+
+          {/* User Account / Auth Actions */}
+          <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+            {user ? (
+              <div className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      onOpenProfile();
+                    }}
+                    className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg"
+                    title={t('adjustInterests')}
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg"
+                    title={t('signOut')}
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center gap-1">
+              <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={() => openAuthModal('login')}
-                  className="px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors cursor-pointer"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    openAuthModal('login');
+                  }}
+                  className="w-full py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-800 text-center"
                 >
                   {t('signIn')}
                 </button>
                 <button
-                  onClick={() => openAuthModal('register')}
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    openAuthModal('register');
+                  }}
+                  className="w-full py-2.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl flex items-center justify-center gap-1.5 shadow-2xs"
                 >
-                  <User className="w-3 h-3" />
+                  <User className="w-3.5 h-3.5" />
                   <span>{t('getStarted')}</span>
                 </button>
               </div>
             )}
           </div>
         </div>
-      </div>
+      )}
     </header>
   );
 };
+

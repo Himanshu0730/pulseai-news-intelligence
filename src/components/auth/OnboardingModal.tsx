@@ -48,8 +48,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
 
     setIsSaving(true);
     try {
+      localStorage.setItem('has_configured_preferences', 'true');
       if (token) {
-        await api.put('/users/interests', { interests: selected });
+        await api.put('/user/interests', { interests: selected });
       } else {
         localStorage.setItem('guest_interests', JSON.stringify(selected));
       }
@@ -57,6 +58,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
       onComplete();
     } catch (err) {
       console.error('Error saving onboarding interests', err);
+      localStorage.setItem('has_configured_preferences', 'true');
       setIsSaving(false);
       // Proceed gracefully
       onComplete();

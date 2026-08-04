@@ -26,7 +26,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const token = localStorage.getItem('pulse_token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    // Server ignores x-guest-id for enforcement; used for analytics only
     'x-guest-id': getOrCreateGuestId(),
     ...(options.headers as Record<string, string>),
   };
@@ -35,55 +34,22 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  let retries = 1;
-  while (true) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
 
-    try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers,
-        signal: controller.signal,
-      });
+  const data = await response.json().catch(() => ({}));
 
-      clearTimeout(timeoutId);
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        if (
-          response.status === 401 &&
-          !endpoint.includes('/auth/login') &&
-          !endpoint.includes('/auth/register') &&
-          !endpoint.includes('/auth/refresh')
-        ) {
-          localStorage.removeItem('pulse_token');
-        }
-        if (retries > 0 && response.status >= 500) {
-          retries--;
-          await new Promise((r) => setTimeout(r, 1000));
-          continue;
-        }
-        throw new ApiError(data.error || 'Request failed', response.status, data.code, data.limitType);
-      }
-
-      return data as T;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err instanceof ApiError) {
-        throw err;
-      }
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new ApiError('Request timed out', 408, 'TIMEOUT');
-      }
-      if (retries > 0) {
-        retries--;
-        await new Promise((r) => setTimeout(r, 1000));
-        continue;
-      }
-      throw err;
+  if (!response.ok) {
+    if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
+      // Clear token on 401
+      localStorage.removeItem('pulse_token');
     }
+    throw new ApiError(data.error || 'Request failed', response.status, data.code, data.limitType);
   }
+
+  return data as T;
 }
 
 export const api = {

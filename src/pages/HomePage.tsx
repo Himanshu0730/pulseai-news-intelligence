@@ -1,18 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, RefreshCw, Search, SlidersHorizontal, Sparkles, TrendingUp, Zap } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Search, SlidersHorizontal, Sparkles, Layers, Grid } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { GeographicScopeSelector, GeoScope } from '../components/common/GeographicScopeSelector';
-import { ArticleCardSkeleton } from '../components/common/Skeleton';
+import { ArticleCardSkeleton, SmartSkeletonFeed } from '../components/common/Skeleton';
 import { AISummaryModal } from '../components/news/AISummaryModal';
 import { ArticleCard } from '../components/news/ArticleCard';
 import { ArticleDetailModal } from '../components/news/ArticleDetailModal';
 import { CategoryNav } from '../components/news/CategoryNav';
 import { CompareCoverageModal } from '../components/news/CompareCoverageModal';
+import { StoryCard } from '../components/news/StoryCard';
+import { StoryDetailModal } from '../components/news/StoryDetailModal';
 import { TrendingSection } from '../components/news/TrendingSection';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { useLanguage } from '../context/LanguageContext';
-import { AISummary, Article, Category } from '../types';
+import { AISummary, Article, Category, StoryCluster } from '../types';
 
 interface HomePageProps {
   searchQuery: string;
@@ -36,23 +38,26 @@ export const HomePage: React.FC<HomePageProps> = ({
     activeView === 'india' ? 'india' : activeView === 'world' ? 'world' : 'all'
   );
 
+  const [feedMode, setFeedMode] = useState<'stories' | 'articles'>('stories');
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
   const [articles, setArticles] = useState<Article[]>([]);
+  const [storyClusters, setStoryClusters] = useState<StoryCluster[]>([]);
   const [trendingArticles, setTrendingArticles] = useState<Article[]>([]);
   const [trendingTopics, setTrendingTopics] = useState<string[]>([]);
-  const [activeProvider, setActiveProvider] = useState<string>('News Engine');
+  const [activeProvider, setActiveProvider] = useState<string>('News Intelligence Engine');
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Modals state
+  // Modal states
+  const [selectedStoryCluster, setSelectedStoryCluster] = useState<StoryCluster | null>(null);
   const [selectedArticleDetail, setSelectedArticleDetail] = useState<Article | null>(null);
   const [compareArticle, setCompareArticle] = useState<Article | null>(null);
   const [summaryArticle, setSummaryArticle] = useState<Article | null>(null);
   const [summaryData, setSummaryData] = useState<AISummary | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
 
-  // Sync currentScope when activeView tab changes
+  // Sync scope when activeView changes
   useEffect(() => {
     if (activeView === 'india') {
       setCurrentScope('india');
@@ -61,13 +66,24 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   }, [activeView]);
 
-  // Load News Feed & Trending Data
+  // Load News Feed & Clusters
   const loadNews = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      let data: { articles: Article[]; activeProvider: string };
+      // Fetch story clusters asynchronously in non-blocking fashion when in default stories mode
+      const clustersPromise = (feedMode === 'stories' && !searchQuery.trim() && selectedCategory === 'All')
+        ? api.get<{ clusters: StoryCluster[] }>(`/news/clusters?scope=${currentScope}`)
+            .then((res) => res.clusters || [])
+            .catch((err) => {
+              console.warn('Failed to load story clusters, proceeding with feed:', err);
+              return [] as StoryCluster[];
+            })
+        : Promise.resolve([] as StoryCluster[]);
+
+      // Fetch primary news feed simultaneously
+      let feedPromise: Promise<{ articles: Article[]; activeProvider: string }>;
 
       if (searchQuery.trim()) {
         const allowed = recordSearch();
@@ -75,27 +91,30 @@ export const HomePage: React.FC<HomePageProps> = ({
           setIsLoading(false);
           return;
         }
-        data = await api.get<{ articles: Article[]; activeProvider: string }>(
+        feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
           `/news/search?q=${encodeURIComponent(searchQuery)}&scope=${currentScope}`
         );
       } else if (selectedCategory !== 'All') {
-        data = await api.get<{ articles: Article[]; activeProvider: string }>(
+        feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
           `/news/category/${encodeURIComponent(selectedCategory)}?scope=${currentScope}`
         );
       } else {
-        data = await api.get<{ articles: Article[]; activeProvider: string }>(
+        feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
           `/news/feed?scope=${currentScope}`
         );
       }
 
-      setArticles(data.articles || []);
-      setActiveProvider(data.activeProvider || 'News Engine');
+      const [clustersResult, feedResult] = await Promise.all([clustersPromise, feedPromise]);
+
+      setStoryClusters(clustersResult);
+      setArticles(feedResult.articles || []);
+      setActiveProvider(feedResult.activeProvider || 'News Intelligence Engine');
     } catch (err: any) {
       console.error('Error fetching news feed', err);
       if (err instanceof ApiError && err.code === 'GUEST_LIMIT_REACHED') {
         openAuthModal('register');
       } else {
-        setError('Unable to load latest news stories. Please verify your connection and try again.');
+        setError('Unable to load latest news stories. Please check your connection and try again.');
       }
     } finally {
       setIsLoading(false);
@@ -116,7 +135,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   useEffect(() => {
     loadNews();
-  }, [searchQuery, selectedCategory, currentScope, user?.interests]);
+  }, [searchQuery, selectedCategory, currentScope, feedMode, user?.interests]);
 
   useEffect(() => {
     loadTrending();
@@ -162,6 +181,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col pb-16 transition-colors duration-200">
+      
       {/* Category Navigation Bar */}
       <CategoryNav
         selectedCategory={selectedCategory}
@@ -171,14 +191,14 @@ export const HomePage: React.FC<HomePageProps> = ({
         }}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 w-full flex-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 w-full flex-1">
         
-        {/* Banner Indicator with Geographic Scope Selector */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white dark:bg-slate-900/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        {/* Banner Indicator with Geographic Scope & Feed View Switcher */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 bg-white dark:bg-slate-900/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <h2 className="text-base font-serif font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <h2 className="text-base font-editorial font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 {activeView === 'india'
                   ? '🇮🇳 India News Intelligence'
                   : activeView === 'world'
@@ -186,28 +206,59 @@ export const HomePage: React.FC<HomePageProps> = ({
                   : activeView === 'trending'
                   ? t('trendingStories')
                   : searchQuery
-                  ? `${t('feedNoticeSearch')} "${searchQuery}"`
+                  ? `Search Results for "${searchQuery}"`
                   : selectedCategory !== 'All'
                   ? `${selectedCategory} News`
                   : user
                   ? t('feedNoticePersonalized')
-                  : t('feedNoticeGlobal')}
+                  : 'Personalized News Intelligence Dashboard'}
               </h2>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-sans">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-ui">
               {activeView === 'india'
-                ? 'Prioritizing Indian institutions, regional coverage, PIB, RBI, tech startups, and state developments'
+                ? 'Prioritizing Indian policy, tech hubs, state news, and PIB official announcements'
                 : activeView === 'world'
-                ? 'Global geopolitical events, international trade, international science and global markets'
+                ? 'Global geopolitical events, international trade, and market dynamics'
                 : activeView === 'trending'
-                ? 'Cross-publisher velocity metrics and high-frequency topics'
+                ? 'Cross-publisher coverage velocity metrics and high-frequency topics'
                 : user
-                ? `6-factor scoring model prioritizing ${user.interests.join(', ')}`
-                : `Multi-source aggregation (${activeProvider}) with zero-config failover`}
+                ? `Scored multi-factor feed matching your interests: ${user.interests.join(', ')}`
+                : `Story aggregation & multi-source corroboration (${activeProvider})`}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            
+            {/* View Mode Switcher: Story Clusters vs All Articles */}
+            {!searchQuery && selectedCategory === 'All' && activeView !== 'trending' && (
+              <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={() => setFeedMode('stories')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                    feedMode === 'stories'
+                      ? 'bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-300 shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                  title="Group articles into Story Clusters"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Story Clusters</span>
+                </button>
+                <button
+                  onClick={() => setFeedMode('articles')}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                    feedMode === 'articles'
+                      ? 'bg-white dark:bg-slate-900 text-sky-700 dark:text-sky-300 shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                  title="Show flat article feed"
+                >
+                  <Grid className="w-3.5 h-3.5" />
+                  <span>All Articles</span>
+                </button>
+              </div>
+            )}
+
             {/* Geographic Scope Selector */}
             <GeographicScopeSelector
               currentScope={currentScope}
@@ -234,18 +285,26 @@ export const HomePage: React.FC<HomePageProps> = ({
           </div>
         </div>
 
-        {/* Main Grid: Articles + Trending Sidebar */}
+        {/* Main Grid: Feed Column + Trending Sidebar */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           {/* Main Feed Column */}
           <div className="lg:col-span-2 space-y-6">
             {isLoading ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <ArticleCardSkeleton />
-                <ArticleCardSkeleton />
-                <ArticleCardSkeleton />
-                <ArticleCardSkeleton />
-              </div>
+              <SmartSkeletonFeed
+                mode={feedMode}
+                statusText={
+                  searchQuery
+                    ? `Searching news intelligence for "${searchQuery}"...`
+                    : selectedCategory !== 'All'
+                    ? `Fetching ${selectedCategory} stories from corroborated feeds...`
+                    : currentScope === 'india'
+                    ? 'Syncing India official PIB & regional headlines...'
+                    : currentScope === 'world'
+                    ? 'Aggregating global geopolitical intelligence...'
+                    : 'Generating live news intelligence feed...'
+                }
+              />
             ) : error ? (
               <div className="p-8 text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
                 <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
@@ -258,12 +317,32 @@ export const HomePage: React.FC<HomePageProps> = ({
                   Retry Fetch
                 </button>
               </div>
+            ) : feedMode === 'stories' && !searchQuery && selectedCategory === 'All' && storyClusters.length > 0 ? (
+              /* Story Clusters First View */
+              <div className="space-y-5">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold">
+                    Grouped Event Clusters ({storyClusters.length} Stories)
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    Showing multi-outlet corroboration
+                  </span>
+                </div>
+                {storyClusters.map((cluster) => (
+                  <StoryCard
+                    key={cluster.clusterId}
+                    cluster={cluster}
+                    onOpenStory={(cls) => setSelectedStoryCluster(cls)}
+                    onCompareCoverage={(art) => setCompareArticle(art)}
+                  />
+                ))}
+              </div>
             ) : displayedArticles.length === 0 ? (
-              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 font-ui shadow-2xs">
                 <Search className="w-10 h-10 text-slate-400 mx-auto" />
-                <h3 className="text-base font-serif font-bold text-slate-900 dark:text-slate-100">No News Found</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  We couldn't find any stories matching your filter criteria and scope ({currentScope.toUpperCase()}).
+                <h3 className="text-base font-editorial font-bold text-slate-900 dark:text-slate-100">No News Found</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                  No stories matched your criteria and scope ({currentScope.toUpperCase()}). Try adjusting your search query or interest topics.
                 </p>
                 <button
                   onClick={() => {
@@ -271,51 +350,82 @@ export const HomePage: React.FC<HomePageProps> = ({
                     setSelectedCategory('All');
                     setCurrentScope('all');
                   }}
-                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium text-xs rounded-lg transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-xs rounded-xl transition-colors cursor-pointer border border-slate-200 dark:border-slate-700"
                 >
-                  Clear Filters
+                  Clear Filters & Reset
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {displayedArticles.map((article) => (
+              /* Flat Article Cards View with Editorial Hero Lead */
+              <div className="space-y-6">
+                {displayedArticles.length > 0 && (
                   <ArticleCard
-                    key={article.id}
-                    article={article}
+                    key={displayedArticles[0].id}
+                    article={displayedArticles[0]}
+                    variant="hero"
                     onSelectArticle={handleSelectArticle}
                     onRequestSummary={handleRequestSummary}
                     onCompareCoverage={(art) => setCompareArticle(art)}
                   />
-                ))}
+                )}
+
+                {displayedArticles.length > 1 && (
+                  <div>
+                    <div className="flex items-center justify-between mb-4 px-1 font-ui">
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+                        Developing News Stream ({displayedArticles.length - 1} Stories)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      {displayedArticles.slice(1).map((article) => (
+                        <ArticleCard
+                          key={article.id}
+                          article={article}
+                          variant="standard"
+                          onSelectArticle={handleSelectArticle}
+                          onRequestSummary={handleRequestSummary}
+                          onCompareCoverage={(art) => setCompareArticle(art)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
 
-          {/* Right Sidebar: Trending Topics & Stories */}
+          {/* Right Sidebar: Signal Trends & Intelligence Highlights */}
           <div className="space-y-6">
             <TrendingSection
               articles={trendingArticles}
               topics={trendingTopics}
-              onSelectArticle={setSelectedArticleDetail}
+              onSelectArticle={handleSelectArticle}
               onSelectTopic={(topic) => onSearchChange(topic)}
+              isLoading={isLoading}
             />
 
             {/* Platform Feature Highlight Card */}
-            <div className="bg-sky-50/70 dark:bg-slate-900 border border-sky-200 dark:border-slate-800 rounded-xl p-5 space-y-3">
+            <div className="bg-sky-50/70 dark:bg-slate-900 border border-sky-200/80 dark:border-slate-800 rounded-2xl p-5 space-y-3 font-ui shadow-2xs">
               <div className="flex items-center gap-2 text-sky-700 dark:text-sky-400">
                 <Sparkles className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                <span className="text-xs font-bold uppercase tracking-wider">India & Global Coverage</span>
+                <span className="text-xs font-bold uppercase tracking-wider">Source Grounding</span>
               </div>
-              <h4 className="text-sm font-serif font-bold text-slate-900 dark:text-slate-100">
-                Transparent Source Intelligence
+              <h4 className="text-sm font-editorial font-bold text-slate-900 dark:text-slate-100">
+                Transparent Evidence Pipeline
               </h4>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-sans">
-                Every story undergoes multi-outlet corroboration scoring, distinguishing official filings from third-party commentary with complete certainty.
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-ui">
+                Every story briefing is backed by verifiable quotes and source citations, enabling instant source-level comparison without hallucinations.
               </p>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Story Detail Modal */}
+      <StoryDetailModal
+        cluster={selectedStoryCluster}
+        onClose={() => setSelectedStoryCluster(null)}
+      />
 
       {/* Article Detail Modal */}
       <ArticleDetailModal

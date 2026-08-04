@@ -7,12 +7,38 @@ export type ConfidenceLevel =
   | 'Conflicting reports'
   | 'Unverified';
 
+export type MisinformationRiskLevel = 'Low Risk' | 'Medium Risk' | 'High Risk';
+
+export interface MisinformationAssessment {
+  riskLevel: MisinformationRiskLevel;
+  confidenceScore: number; // 0.0 to 1.0
+  reasons: string[];
+  classifierScore?: number; // Raw model probability from Hugging Face model
+  corroboratingSourcesCount: number;
+  hasPrimarySource: boolean;
+  recommendation: string;
+}
+
+export interface FactCheckStatus {
+  available: boolean;
+  publisher?: string;
+  claim?: string;
+  verdict?: string;
+  url?: string;
+}
+
+export interface DisputedInfo {
+  isDisputed: boolean;
+  details?: string;
+}
+
 export interface Article {
-  id: string; // Unique hash or URL-based identifier
+  id: string; // Deterministic hash based on canonical URL
   title: string;
   description: string;
   content: string;
   url: string;
+  canonicalUrl?: string;
   urlToImage: string;
   publishedAt: string;
   source: {
@@ -35,16 +61,32 @@ export interface Article {
   corroboratingSourcesCount?: number;
   storyClusterId?: string;
   primarySourceUrl?: string;
-  factCheckStatus?: {
-    available: boolean;
-    publisher?: string;
-    claim?: string;
-    verdict?: string;
-    url?: string;
-  };
-  disputedInfo?: {
-    isDisputed: boolean;
-    details?: string;
+  factCheckStatus?: FactCheckStatus;
+  disputedInfo?: DisputedInfo;
+  misinformationRisk?: MisinformationAssessment;
+}
+
+export interface StoryCluster {
+  clusterId: string;
+  canonicalTopic: string;
+  clusterTitle: string;
+  representativeArticle: Article;
+  articles: Article[];
+  sourcesCount: number;
+  distinctPublisherCount: number;
+  firstSeen: string;
+  latestUpdate: string;
+  region: string;
+  confidenceLevel: ConfidenceLevel;
+  misinformationRisk?: MisinformationAssessment;
+  trendScore: number;
+  summaryBriefing?: {
+    whatHappened: string;
+    whyItMatters: string;
+    confirmedFacts: string[];
+    uncertainties: string[];
+    sourceAgreement: string[];
+    sourceDifferences: string[];
   };
 }
 
@@ -57,6 +99,7 @@ export interface NewsFetchOptions {
 
 export interface NewsProvider {
   name: string;
+  isAvailable?(): boolean;
   fetchHeadlines(options?: NewsFetchOptions): Promise<Article[]>;
   searchNews(query: string, options?: NewsFetchOptions): Promise<Article[]>;
 }

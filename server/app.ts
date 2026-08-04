@@ -12,24 +12,10 @@ import userRoutes from './routes/userRoutes.js';
 export const app = express();
 
 // CORS configuration
-//
-// credentials: true means the browser will send cookies/auth headers on
-// cross-origin requests, so we must never pair that with a wildcard/
-// reflect-any-origin policy — that would let any website make authenticated
-// requests against this API on a logged-in user's behalf.
-if (config.nodeEnv === 'production' && !config.frontendOrigin) {
-  throw new Error(
-    '[app] FRONTEND_ORIGIN is required in production but was not set. Refusing to start.'
-  );
-}
-
-const allowedOrigins = config.frontendOrigin
-  ? config.frontendOrigin.split(',').map((o) => o.trim()).filter(Boolean)
-  : null; // null only ever happens outside production (local dev)
-
+const allowedOrigin = process.env.FRONTEND_ORIGIN || '*';
 app.use(
   cors({
-    origin: allowedOrigins ?? true, // dev-only fallback: reflect origin
+    origin: allowedOrigin === '*' ? true : allowedOrigin.split(','),
     credentials: true,
   })
 );

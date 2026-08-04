@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Bookmark as BookmarkIcon } from 'lucide-react';
+import { ArticleCardSkeleton } from '../components/common/Skeleton';
 import { AISummaryModal } from '../components/news/AISummaryModal';
 import { ArticleCard } from '../components/news/ArticleCard';
 import { ArticleDetailModal } from '../components/news/ArticleDetailModal';
@@ -10,7 +11,7 @@ import { api } from '../api/client';
 
 export const BookmarksPage: React.FC = () => {
   const { bookmarks, isLoading } = useBookmarks();
-  const { language, t } = useLanguage();
+  const { t } = useLanguage();
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [selectedArticleDetail, setSelectedArticleDetail] = useState<Article | null>(null);
 
@@ -46,7 +47,6 @@ export const BookmarksPage: React.FC = () => {
         title: article.title,
         content: article.content || article.description,
         url: article.url,
-        language,
       });
       setSummaryData(res.summary);
     } catch (err) {
@@ -57,18 +57,18 @@ export const BookmarksPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-16 transition-colors duration-200">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 pb-16 transition-colors duration-200 font-ui">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
           <div>
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950 border border-sky-200 dark:border-sky-800 flex items-center justify-center text-sky-600 dark:text-sky-400">
                 <BookmarkIcon className="w-5 h-5 fill-sky-600/20" />
               </div>
               <div>
-                <h1 className="text-2xl font-serif font-bold text-slate-900 dark:text-slate-100">{t('savedBookmarks')}</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">Access your saved offline reading list</p>
+                <h1 className="text-2xl font-editorial font-bold text-slate-900 dark:text-slate-100">{t('savedBookmarks')}</h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Access your saved offline reading list</p>
               </div>
             </div>
           </div>
@@ -80,9 +80,9 @@ export const BookmarksPage: React.FC = () => {
                 <button
                   key={cat}
                   onClick={() => setFilterCategory(cat)}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     filterCategory === cat
-                      ? 'bg-sky-600 text-white font-semibold'
+                      ? 'bg-sky-600 text-white font-bold shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
                   }`}
                 >
@@ -96,12 +96,16 @@ export const BookmarksPage: React.FC = () => {
         {/* Content */}
         <div className="mt-8">
           {isLoading ? (
-            <div className="text-center py-12 text-slate-400 text-sm font-sans">{t('loading')}</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <ArticleCardSkeleton />
+              <ArticleCardSkeleton />
+              <ArticleCardSkeleton />
+            </div>
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-lg mx-auto space-y-3">
+            <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 max-w-lg mx-auto space-y-3 shadow-2xs">
               <BookmarkIcon className="w-10 h-10 text-slate-400 mx-auto" />
-              <h3 className="text-base font-serif font-bold text-slate-900 dark:text-slate-100">No Saved Bookmarks</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">
+              <h3 className="text-base font-editorial font-bold text-slate-900 dark:text-slate-100">No Saved Bookmarks</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 You haven't bookmarked any articles yet. Click the bookmark icon on any card in the news feed to save stories here.
               </p>
             </div>

@@ -11,6 +11,10 @@ interface GuestUsageState {
 
 interface GuestContextType {
   isGuest: boolean;
+  trialSecondsRemaining: number;
+  isTrialExpired: boolean;
+  resetTrialTimer: () => void;
+  setDashboardActive: (active: boolean) => void;
   articlesOpened: number;
   articlesLimit: number;
   articlesRemaining: number;
@@ -32,6 +36,7 @@ interface GuestContextType {
 const GuestContext = createContext<GuestContextType | undefined>(undefined);
 
 const GUEST_STORAGE_KEY = 'pulse_guest_usage_v1';
+const TRIAL_DURATION_SECONDS = 30;
 
 function getTodayStr(): string {
   return new Date().toISOString().split('T')[0];
@@ -44,6 +49,11 @@ export const GuestProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [articlesLimit, setArticlesLimit] = useState(10);
   const [searchesLimit, setSearchesLimit] = useState(5);
   const [aiLimit, setAiLimit] = useState(3);
+
+  // 30-second trial countdown state
+  const [trialSecondsRemaining, setTrialSecondsRemaining] = useState<number>(TRIAL_DURATION_SECONDS);
+  const [isTrialExpired, setIsTrialExpired] = useState<boolean>(false);
+  const [isDashboardActive, setIsDashboardActive] = useState<boolean>(false);
 
   const [usage, setUsage] = useState<GuestUsageState>(() => {
     try {
@@ -68,6 +78,36 @@ export const GuestProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [showLimitNotice, setShowLimitNotice] = useState(false);
   const [limitNoticeMessage, setLimitNoticeMessage] = useState('');
+
+  // Manage 30-second trial timer (only active on dashboard)
+  useEffect(() => {
+    if (!isGuest || !isDashboardActive) {
+      return;
+    }
+
+    if (trialSecondsRemaining <= 0) {
+      setIsTrialExpired(true);
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTrialSecondsRemaining((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsTrialExpired(true);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isGuest, isDashboardActive, trialSecondsRemaining]);
+
+  const resetTrialTimer = () => {
+    setTrialSecondsRemaining(TRIAL_DURATION_SECONDS);
+    setIsTrialExpired(false);
+  };
 
   // Persist usage state to localStorage
   useEffect(() => {
@@ -117,6 +157,11 @@ export const GuestProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const recordArticleOpen = async (articleId: string): Promise<boolean> => {
     if (!isGuest) return true; // Unlimited for authenticated users
 
+    if (isTrialExpired) {
+      openAuthModal('login');
+      return false;
+    }
+
     if (usage.articlesOpened >= articlesLimit) {
       setLimitNoticeMessage(`You've reached your free limit of ${articlesLimit} articles today. Create a free account to continue reading.`);
       setShowLimitNotice(true);
@@ -129,10 +174,6 @@ export const GuestProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       await api.post(`/news/articles/${articleId}/open`);
       setUsage((prev) => {
         const newOpened = prev.articlesOpened + 1;
-        if (newOpened >= articlesLimit - 2 && newOpened < articlesLimit) {
-          setLimitNoticeMessage(`You've explored ${newOpened} of ${articlesLimit} free articles today. Create a free account to continue.`);
-          setShowLimitNotice(true);
-        }
         return { ...prev, articlesOpened: newOpened };
       });
       return true;
@@ -152,6 +193,11 @@ export const GuestProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const recordSearch = (): boolean => {
     if (!isGuest) return true;
 
+    if (isTrialExpired) {
+      openAuthModal('login');
+      return false;
+    }
+
     if (usage.searchesPerformed >= searchesLimit) {
       setLimitNoticeMessage(`You've reached your free search limit (${searchesLimit}/day). Sign in or register for unlimited searches.`);
       setShowLimitNotice(true);
@@ -165,6 +211,11 @@ export const GuestProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const recordAiRequest = (): boolean => {
     if (!isGuest) return true;
+
+    if (isTrialExpired) {
+      openAuthModal('login');
+      return false;
+    }
 
     if (usage.aiRequestsPerformed >= aiLimit) {
       setLimitNoticeMessage(`You've used all ${aiLimit} free AI summaries/translations today. Create a free account to continue.`);
@@ -189,6 +240,10 @@ export const GuestProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     <GuestContext.Provider
       value={{
         isGuest,
+        trialSecondsRemaining,
+        isTrialExpired,
+        resetTrialTimer,
+        setDashboardActive: setIsDashboardActive,
         articlesOpened: usage.articlesOpened,
         articlesLimit,
         articlesRemaining,
@@ -219,3 +274,4 @@ export const useGuest = () => {
   }
   return context;
 };
+

@@ -15,12 +15,25 @@ export type ConfidenceLevel =
   | 'Conflicting reports'
   | 'Unverified';
 
+export type MisinformationRiskLevel = 'Low Risk' | 'Medium Risk' | 'High Risk';
+
+export interface MisinformationAssessment {
+  riskLevel: MisinformationRiskLevel;
+  confidenceScore: number;
+  reasons: string[];
+  classifierScore?: number;
+  corroboratingSourcesCount: number;
+  hasPrimarySource: boolean;
+  recommendation: string;
+}
+
 export interface Article {
   id: string;
   title: string;
   description: string;
   content: string;
   url: string;
+  canonicalUrl?: string;
   urlToImage: string;
   publishedAt: string;
   source: {
@@ -35,7 +48,6 @@ export interface Article {
   author?: string;
   readTimeMinutes?: number;
   trendingScore?: number;
-  // Source Intelligence & India-first fields
   region?: 'India' | 'Indian State' | 'South Asia' | 'Global' | 'International';
   sourceType?: SourceType;
   credibilityScore?: number;
@@ -54,15 +66,41 @@ export interface Article {
     isDisputed: boolean;
     details?: string;
   };
+  misinformationRisk?: MisinformationAssessment;
   personalizationScore?: number;
   explanationTag?: string;
   scoreBreakdown?: {
     interestMatch: number;
-    topicMatch: number;
+    topicMatch?: number;
+    behavioralMatch?: number;
     geographicRelevance: number;
     freshness: number;
     engagement: number;
     trendingScore: number;
+  };
+}
+
+export interface StoryCluster {
+  clusterId: string;
+  canonicalTopic: string;
+  clusterTitle: string;
+  representativeArticle: Article;
+  articles: Article[];
+  sourcesCount: number;
+  distinctPublisherCount: number;
+  firstSeen: string;
+  latestUpdate: string;
+  region: string;
+  confidenceLevel: ConfidenceLevel;
+  misinformationRisk?: MisinformationAssessment;
+  trendScore: number;
+  summaryBriefing?: {
+    whatHappened: string;
+    whyItMatters: string;
+    confirmedFacts: string[];
+    uncertainties: string[];
+    sourceAgreement: string[];
+    sourceDifferences: string[];
   };
 }
 

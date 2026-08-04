@@ -47,7 +47,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onExplore, onGetStarte
               className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase bg-sky-100 text-sky-800 dark:bg-sky-950/80 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 mb-6"
             >
               <Sparkles className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-              <span>{t('brandTagline')} v2.5</span>
+              <span>{t('brandTagline')}</span>
             </motion.div>
 
             {/* Headline */}
@@ -112,7 +112,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onExplore, onGetStarte
                 <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
               </div>
               <div className="text-xs font-mono text-slate-500 dark:text-slate-400 bg-slate-200/60 dark:bg-slate-900 px-3 py-1 rounded-md">
-                https://pulseai.app/intelligence-feed
+                PulseAI Live Preview
               </div>
               <div className="flex items-center gap-1.5 text-xs text-sky-600 dark:text-sky-400 font-medium">
                 <Zap className="w-3.5 h-3.5" />

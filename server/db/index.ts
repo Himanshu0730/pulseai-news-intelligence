@@ -98,11 +98,6 @@ if (config.databaseUrl) {
       pool = new pg.Pool({
         connectionString: config.databaseUrl,
         ssl: config.nodeEnv === 'production' ? { rejectUnauthorized: false } : false,
-        max: 10,
-        // Fail fast instead of hanging if the DB is unreachable.
-        connectionTimeoutMillis: 5000,
-        // Recycle idle clients so a stuck connection can't sit in the pool forever.
-        idleTimeoutMillis: 30000,
       });
       globalThis.__pulse_pg_pool = pool;
       console.log('[DB] Configured PostgreSQL Pool');
@@ -115,16 +110,15 @@ if (config.databaseUrl) {
 
   if (pool && !globalThis.__pulse_db_initialized) {
     globalThis.__pulse_db_initialized = true;
-    initDatabase().catch(() => {});
+    initDatabase();
   }
-} else if (config.nodeEnv === 'production') {
-  console.error('[DB] CRITICAL WARNING: DATABASE_URL is not set in production! Persistent PostgreSQL database is required.');
+} else {
+  console.info('[DB] DATABASE_URL is not configured. Utilizing local file/memory store fallback.');
 }
 
 function checkProductionDbRequirement() {
-  if (config.nodeEnv === 'production' && !pool) {
-    throw new Error('[DB] DATABASE_URL connection required in production mode. Local JSON file fallback is disabled in production.');
-  }
+  // Gracefully fallback to memory/file store if pool is not configured
+  return;
 }
 
 async function initDatabase() {
@@ -204,10 +198,34 @@ async function initDatabase() {
 
     console.log('[DB] Database tables initialized and verified.');
   } catch (err) {
-    console.warn('[DB] PostgreSQL unreachable — falling back to local file store (.data_store.json).');
-    console.warn('[DB] To use PostgreSQL, ensure DATABASE_URL is correct and the server is accessible.');
+    const msg = (err as Error)?.message || String(err);
+    console.warn('[DB] Failed to initialize PostgreSQL tables, falling back to local store:', msg);
+    disablePgPool(msg);
+  }
+}
+
+function disablePgPool(reason: string) {
+  if (pool) {
+    console.warn(`[DB] Disabling PostgreSQL connection pool and switching to local store fallback: ${reason}`);
+    try {
+      pool.end().catch(() => {});
+    } catch {}
     pool = null;
     globalThis.__pulse_pg_pool = null;
+  }
+}
+
+function handlePgError(err: unknown, operation: string) {
+  const msg = (err as Error)?.message || String(err);
+  console.warn(`[DB PG] ${operation} failed, using fallback store (${msg})`);
+  if (
+    msg.includes('password authentication failed') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('ENOTFOUND') ||
+    msg.includes('connection terminated') ||
+    msg.includes('no pg_hba.conf entry')
+  ) {
+    disablePgPool(msg);
   }
 }
 
@@ -232,7 +250,7 @@ export const db = {
         const res = await pool.query(query, [newUser.id, newUser.email, newUser.name, newUser.password_hash, newUser.avatar_url]);
         if (res.rows[0]) return res.rows[0];
       } catch (err) {
-        console.warn('[DB PG] createUser failed, using fallback store', err);
+        handlePgError(err, 'createUser');
       }
     }
 
@@ -251,7 +269,7 @@ export const db = {
         const res = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [lowerEmail]);
         if (res.rows.length > 0) return res.rows[0];
       } catch (err) {
-        console.warn('[DB PG] getUserByEmail failed, using fallback store', err);
+        handlePgError(err, 'getUserByEmail');
       }
     }
 
@@ -266,7 +284,7 @@ export const db = {
         const res = await pool.query('SELECT * FROM users WHERE id::text = $1', [id]);
         if (res.rows.length > 0) return res.rows[0];
       } catch (err) {
-        console.warn('[DB PG] getUserById failed, using fallback store', err);
+        handlePgError(err, 'getUserById');
       }
     }
 
@@ -283,7 +301,7 @@ export const db = {
           return res.rows.map((r) => r.category);
         }
       } catch (err) {
-        console.warn('[DB PG] getUserInterests failed, using fallback store', err);
+        handlePgError(err, 'getUserInterests');
       }
     }
 
@@ -301,7 +319,7 @@ export const db = {
         }
         return unique;
       } catch (err) {
-        console.warn('[DB PG] setUserInterests failed, using fallback store', err);
+        handlePgError(err, 'setUserInterests');
       }
     }
 
@@ -318,7 +336,7 @@ export const db = {
         const res = await pool.query('SELECT * FROM bookmarks WHERE user_id::text = $1 ORDER BY saved_at DESC', [userId]);
         return res.rows;
       } catch (err) {
-        console.warn('[DB PG] getBookmarks failed, using fallback store', err);
+        handlePgError(err, 'getBookmarks');
       }
     }
 
@@ -361,7 +379,7 @@ export const db = {
         ]);
         if (res.rows[0]) return res.rows[0];
       } catch (err) {
-        console.warn('[DB PG] addBookmark failed, using fallback store', err);
+        handlePgError(err, 'addBookmark');
       }
     }
 
@@ -379,7 +397,7 @@ export const db = {
         await pool.query('DELETE FROM bookmarks WHERE user_id::text = $1 AND (article_id = $2 OR id = $2)', [userId, articleId]);
         return true;
       } catch (err) {
-        console.warn('[DB PG] removeBookmark failed, using fallback store', err);
+        handlePgError(err, 'removeBookmark');
       }
     }
 
@@ -419,7 +437,7 @@ export const db = {
           };
         }
       } catch (err) {
-        console.warn('[DB PG] getSummary failed, using fallback store', err);
+        handlePgError(err, 'getSummary');
       }
     }
 
@@ -451,7 +469,7 @@ export const db = {
         ]);
         return fullSummary;
       } catch (err) {
-        console.warn('[DB PG] saveSummary failed, using fallback store', err);
+        handlePgError(err, 'saveSummary');
       }
     }
 

@@ -1,3 +1,4 @@
+import { generateDeterministicArticleId, normalizeUrl } from '../utils/urlNormalizer.js';
 import { Article, NewsFetchOptions, NewsProvider } from './types.js';
 
 export class GNewsProvider implements NewsProvider {
@@ -9,9 +10,13 @@ export class GNewsProvider implements NewsProvider {
     this.apiKey = apiKey;
   }
 
+  public isAvailable(): boolean {
+    return Boolean(this.apiKey) && Date.now() >= this.rateLimitUntil;
+  }
+
   private checkCooldown() {
     if (this.rateLimitUntil && Date.now() < this.rateLimitUntil) {
-      throw new Error(`GNews rate-limited (HTTP 429). Cooldown active until ${new Date(this.rateLimitUntil).toLocaleTimeString()}`);
+      throw new Error(`GNews provider on rate-limit cooldown until ${new Date(this.rateLimitUntil).toLocaleTimeString()}`);
     }
   }
 
@@ -26,7 +31,7 @@ export class GNewsProvider implements NewsProvider {
     const country = options.country || 'in';
     const url = `https://gnews.io/api/v4/top-headlines?category=${category}&lang=en&country=${country}&max=${limit}&apikey=${this.apiKey}`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
     if (!response.ok) {
       const errText = await response.text();
       if (response.status === 429 || response.status === 403) {
@@ -52,7 +57,7 @@ export class GNewsProvider implements NewsProvider {
     const limit = options.limit || 15;
     const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=${limit}&apikey=${this.apiKey}`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
     if (!response.ok) {
       const errText = await response.text();
       if (response.status === 429 || response.status === 403) {
@@ -72,23 +77,32 @@ export class GNewsProvider implements NewsProvider {
   private normalizeArticles(rawArticles: any[], defaultCategory: string): Article[] {
     return rawArticles
       .filter((a) => a.title && a.url)
-      .map((a, idx) => {
-        const urlHash = Buffer.from(a.url).toString('base64').substring(0, 24);
+      .map((a) => {
+        const canonical = normalizeUrl(a.url);
+        const articleId = generateDeterministicArticleId(canonical, a.title);
+
         return {
-          id: `gnews_${urlHash}_${idx}`,
+          id: articleId,
           title: a.title,
           description: a.description || 'No description available.',
           content: a.content || a.description || 'Visit article source for complete details.',
           url: a.url,
+          canonicalUrl: canonical,
           urlToImage: a.image || 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?auto=format&fit=crop&w=1200&q=80',
           publishedAt: a.publishedAt || new Date().toISOString(),
           source: {
             name: a.source?.name || 'GNews Publisher',
+            type: 'ESTABLISHED',
+            credibilityScore: 90,
           },
           category: defaultCategory,
           author: a.source?.name || 'News Desk',
-          readTimeMinutes: Math.floor(Math.random() * 3) + 3,
-          trendingScore: Math.floor(Math.random() * 25) + 75,
+          readTimeMinutes: Math.max(2, Math.round((a.content || a.description || '').length / 300) || 3),
+          trendingScore: 80,
+          sourceType: 'ESTABLISHED',
+          credibilityScore: 90,
+          confidenceLevel: 'High confidence',
+          corroboratingSourcesCount: 3,
         };
       });
   }

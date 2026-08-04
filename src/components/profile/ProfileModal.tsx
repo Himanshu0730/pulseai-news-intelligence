@@ -1,5 +1,5 @@
 import { SlidersHorizontal, User as UserIcon, X } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { InterestSelector } from './InterestSelector';
 
@@ -13,12 +13,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose, onS
   const { user, updateInterests } = useAuth();
   const [selectedInterests, setSelectedInterests] = useState<string[]>(user?.interests || ['Technology', 'AI & ML', 'Business']);
   const [isSaving, setIsSaving] = useState(false);
-
-  useEffect(() => {
-    if (isOpen && user?.interests) {
-      setSelectedInterests(user.interests);
-    }
-  }, [isOpen, user?.interests]);
 
   if (!isOpen || !user) return null;
 

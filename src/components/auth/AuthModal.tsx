@@ -135,28 +135,6 @@ export const AuthModal: React.FC = () => {
             {isSubmitting ? 'Processing...' : isLogin ? 'Sign In' : 'Create Free Account'}
           </button>
 
-          {/* Local Development Demo Account Shortcut */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={async () => {
-                setError(null);
-                setIsSubmitting(true);
-                try {
-                  await login('demo@pulseai.local', 'DemoPulseAI123!');
-                } catch (err: any) {
-                  setError(err.message || 'Demo login failed.');
-                } finally {
-                  setIsSubmitting(false);
-                }
-              }}
-              className="w-full py-2 bg-slate-800/80 hover:bg-slate-800 text-slate-300 font-medium text-xs rounded-xl border border-slate-700/60 transition-colors flex items-center justify-center gap-2"
-            >
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Quick Demo Login (demo@pulseai.local)
-            </button>
-          </div>
-
           {/* Switch Mode Toggle */}
           <div className="pt-3 border-t border-slate-800/80 text-center text-xs text-slate-400">
             {isLogin ? (

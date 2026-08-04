@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { AuthModal } from './components/auth/AuthModal';
 import { OnboardingModal } from './components/auth/OnboardingModal';
-import { GuestLimitBanner } from './components/common/GuestLimitBanner';
+import { GuestTrialModal } from './components/common/GuestTrialModal';
 import { Navbar } from './components/common/Navbar';
 import { PublicHeader } from './components/common/PublicHeader';
 import { ProfileModal } from './components/profile/ProfileModal';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { BookmarkProvider } from './context/BookmarkContext';
-import { GuestProvider } from './context/GuestContext';
+import { GuestProvider, useGuest } from './context/GuestContext';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { BookmarksPage } from './pages/BookmarksPage';
@@ -15,14 +15,25 @@ import { HomePage } from './pages/HomePage';
 import { LandingPage } from './pages/LandingPage';
 
 const MainLayout: React.FC = () => {
-  const { openAuthModal } = useAuth();
+  const { user, openAuthModal } = useAuth();
+  const { setDashboardActive } = useGuest();
   const [activeView, setActiveView] = useState<'landing' | 'feed' | 'india' | 'world' | 'trending' | 'bookmarks'>('landing');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isProfileOpen, setIsProfileOpen] = useState<boolean>(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(false);
 
+  // Activate dashboard trial timer only when user navigates away from landing page
+  React.useEffect(() => {
+    setDashboardActive(activeView !== 'landing');
+  }, [activeView, setDashboardActive]);
+
   const handleGetStarted = () => {
-    setIsOnboardingOpen(true);
+    const hasConfigured = localStorage.getItem('has_configured_preferences') === 'true';
+    if (hasConfigured || (user && user.interests && user.interests.length > 0)) {
+      setActiveView('feed');
+    } else {
+      setIsOnboardingOpen(true);
+    }
   };
 
   const handleExplore = () => {
@@ -55,8 +66,8 @@ const MainLayout: React.FC = () => {
         />
       )}
 
-      {/* Guest Limit Indicator Banner */}
-      <GuestLimitBanner />
+      {/* Guest Trial 30-Second Countdown & Modal Overlay (only on Dashboard) */}
+      <GuestTrialModal activeView={activeView} />
 
       {/* Main View Router */}
       <main>
