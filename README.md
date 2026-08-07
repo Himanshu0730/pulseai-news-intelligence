@@ -1,37 +1,12 @@
-# PulseAI — News Intelligence Platform
+# PulseAI — India-First News Intelligence Platform 🇮🇳
 
-![Status](https://img.shields.io/badge/status-active-success)
-![License](https://img.shields.io/badge/license-MIT-blue)
-![Node](https://img.shields.io/badge/node-%3E%3D18-green)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.8-blue)
-
-PulseAI is an India-first, AI-powered personalized news intelligence platform. It aggregates live news from multiple providers, applies deterministic personalization, generates executive AI summaries, clusters related coverage, and surfaces multi-perspective news analysis.
+PulseAI is an India-first AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
 
 ---
 
-## Table of Contents
-
-- [Key Features](#-key-features)
-- [Tech Stack](#-tech-stack)
-- [Repository Structure](#-repository-structure)
-- [Local Development Setup](#-local-development-setup)
-- [Supabase Database Setup](#-supabase-database-setup)
-- [Environment Variables](#-environment-variables)
-- [Testing & Verification](#-testing--verification)
-- [Deploying to Vercel](#-deploying-to-vercel)
-- [Health Check API](#-health-check-api)
-- [Security Notes](#-security-notes)
-- # [License](#license)
-
-# PulseAI — News Intelligence Platform
-
-PulseAI is an AI-powered personalized news intelligence platform. It aggregates live news from multi-source providers, performs deterministic personalization, generates executive AI summaries, clusters related coverage, and provides multi-perspective news analysis.
-
-## 🔗 **Live Demo:** [https://pulseai-news-intelligence.vercel.app/)
-
 ## 🌟 Key Features
 
-- 🇮🇳 **Geographic Intelligence**: Filter coverage across **India**, **World**, or **All** feeds with automatic priority ranking for Indian national developments, technology, startup ecosystems, and public policy.
+- 🇮🇳 **India-First Geographic Intelligence**: Filter coverage across **India**, **World**, or **All** feeds with automatic priority ranking for Indian national developments, technology, startup ecosystems, and public policy.
 - 👤 **Controlled Guest Reading Experience**: Unauthenticated users can browse news and read articles up to daily limits (`10` articles, `5` searches, `3` AI summaries per day). Limits are enforced on both server-side API middleware and client-side context.
 - 🎯 **Deterministic Personalization**: User interest scoring ranks feed content dynamically based on category preferences, topic interaction decay, and freshness signals without obscuring non-preferred topics.
 - 🔥 **Real-Time Trending Engine**: Dedicated trending feed identifying breaking developments and high-velocity news clusters independently from user personalization filters.
@@ -87,21 +62,16 @@ PulseAI is an AI-powered personalized news intelligence platform. It aggregates 
 ## 🚀 Local Development Setup
 
 ### 1. Installation
-
 ```bash
 npm install
 ```
 
 ### 2. Environment Configuration
-
 Copy `.env.example` to `.env`:
-
 ```bash
 cp .env.example .env
 ```
-
 Configure your credentials in `.env`:
-
 ```env
 GEMINI_API_KEY="your-gemini-api-key"
 JWT_SECRET="your-secure-random-jwt-secret"
@@ -109,24 +79,18 @@ DATABASE_URL="" # Optional for local dev - falls back to .data_store.json if omi
 ```
 
 ### 3. Seed Local Demo User
-
 Populate the development store with a test account:
-
 ```bash
 npm run seed:demo
 ```
-
 This generates:
-
 - **Email**: `admin@pulseai.local`
 - **Password**: `PulseAI-Test-2026!`
 
 ### 4. Start Development Server
-
 ```bash
 npm run dev
 ```
-
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
@@ -148,39 +112,36 @@ To configure persistent PostgreSQL storage on Supabase:
 
 ## ⚙️ Environment Variables
 
-| Variable              | Description                                                    | Server / Client | Required                          |
-| --------------------- | -------------------------------------------------------------- | --------------- | --------------------------------- |
-| `GEMINI_API_KEY`      | Google Gemini API key for AI summaries & translation           | Server-side     | Optional (AI features require it) |
-| `JWT_SECRET`          | Secret key for signing authentication tokens                   | Server-side     | Required                          |
-| `DATABASE_URL`        | PostgreSQL connection string (Supabase)                        | Server-side     | Required in Production            |
-| `NEWS_API_KEY`        | NewsAPI key for multi-source provider aggregation              | Server-side     | Optional (Falls back to RSS)      |
-| `GNEWS_API_KEY`       | GNews API key for headline aggregation                         | Server-side     | Optional (Falls back to RSS)      |
-| `GUEST_ARTICLE_LIMIT` | Max free article reads per guest per day (default: `10`)       | Server-side     | Optional                          |
-| `GUEST_SEARCH_LIMIT`  | Max search requests per guest per day (default: `5`)           | Server-side     | Optional                          |
-| `GUEST_AI_LIMIT`      | Max AI summaries/translations per guest per day (default: `3`) | Server-side     | Optional                          |
-| `NODE_ENV`            | Environment mode (`development` or `production`)               | Server-side     | Required                          |
-| `PORT`                | Web server port (default: `3000`)                              | Server-side     | Required                          |
-| `FRONTEND_ORIGIN`     | CORS allowed origins (e.g. `https://your-app.vercel.app`)      | Server-side     | Optional                          |
-| `VITE_API_BASE_URL`   | API base URL override for split client/server setups           | Client-side     | Optional                          |
+| Variable | Description | Server / Client | Required |
+|---|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini API key for AI summaries & translation | Server-side | Optional (AI features require it) |
+| `JWT_SECRET` | Secret key for signing authentication tokens | Server-side | Required |
+| `DATABASE_URL` | PostgreSQL connection string (Supabase) | Server-side | Required in Production |
+| `NEWS_API_KEY` | NewsAPI key for multi-source provider aggregation | Server-side | Optional (Falls back to RSS) |
+| `GNEWS_API_KEY` | GNews API key for headline aggregation | Server-side | Optional (Falls back to RSS) |
+| `GUEST_ARTICLE_LIMIT` | Max free article reads per guest per day (default: `10`) | Server-side | Optional |
+| `GUEST_SEARCH_LIMIT` | Max search requests per guest per day (default: `5`) | Server-side | Optional |
+| `GUEST_AI_LIMIT` | Max AI summaries/translations per guest per day (default: `3`) | Server-side | Optional |
+| `NODE_ENV` | Environment mode (`development` or `production`) | Server-side | Required |
+| `PORT` | Web server port (default: `3000`) | Server-side | Required |
+| `FRONTEND_ORIGIN` | CORS allowed origins (e.g. `https://your-app.vercel.app`) | Server-side | Optional |
+| `VITE_API_BASE_URL` | API base URL override for split client/server setups | Client-side | Optional |
 
 ---
 
 ## 🧪 Testing & Verification
 
 Run automated TAP unit tests:
-
 ```bash
 npm test
 ```
 
 Run TypeScript strict type check / linting:
-
 ```bash
 npm run lint
 ```
 
 Run production distribution build:
-
 ```bash
 npm run build
 ```
@@ -190,18 +151,16 @@ npm run build
 ## 🌐 Deploying to Vercel
 
 ### 1. Push Code to GitHub
-
 ```bash
 git init
 git add .
 git commit -m "feat: initial release"
 git branch -M main
-git remote add origin https://github.com/your-username/pulseai-news.git
+git remote add origin https://github.com/Himanshu0730/pulseai-news-intelligence.git
 git push -u origin main
 ```
 
 ### 2. Connect Repository on Vercel
-
 1. Log in to [Vercel](https://vercel.com) and click **Add New > Project**.
 2. Import your GitHub repository `pulseai-news`.
 3. Vercel automatically detects `vercel.json` configuration.
@@ -217,7 +176,6 @@ git push -u origin main
 ## ⚡ Health Check API
 
 Verify backend health at:
-
 - `GET /api/health`
 - `GET /api/v1/health`
 
@@ -226,12 +184,4 @@ Verify backend health at:
 ## 🔐 Security Notes
 
 - **API Secrets**: All API keys (`GEMINI_API_KEY`, `NEWS_API_KEY`, `GNEWS_API_KEY`, `DATABASE_URL`) are kept strictly server-side and never exposed to the browser.
-  <<<<<<< HEAD
-- # **Git Hygiene**: `.env` and `.data_store.json` files are excluded via `.gitignore`.
-- **Git Hygiene**: `.env` and `.data_store.json` are excluded via `.gitignore`.
-
----
-
-## License
-
-This project is licensed under the MIT License. Add a `LICENSE` file to the repository root to make this official.
+- **Git Hygiene**: `.env` and `.data_store.json` files are excluded via `.gitignore`.

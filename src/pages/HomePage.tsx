@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw, Search, SlidersHorizontal, Sparkles, Layers, Grid } from 'lucide-react';
 import { api, ApiError } from '../api/client';
 import { GeographicScopeSelector, GeoScope } from '../components/common/GeographicScopeSelector';
@@ -49,6 +49,29 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Monotonic sequence counters: stale responses (from a previous scope/search/
+  // category/feed-mode request) are dropped so a slow older request can never
+  // overwrite fresher results or flash the UI backwards.
+  const feedRequestSeq = useRef(0);
+  const trendingRequestSeq = useRef(0);
+
+  // Perf: records the launch time of the newest feed request so the first
+  // content commit can be measured end-to-end from initial load.
+  const newsLaunchTime = useRef<number | null>(null);
+
+  // Progressive rendering: only enough cards for the first screen are mounted
+  // initially; an IntersectionObserver sentinel mounts more as the user scrolls.
+  const INITIAL_RENDER_COUNT = 6;
+  const RENDER_BATCH = 6;
+  const [renderCount, setRenderCount] = useState(INITIAL_RENDER_COUNT);
+  const renderSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const logPerf = (label: string, ms: number, detail = '') => {
+    const width = 26;
+    const padded = label.length >= width ? label.slice(0, width) : label.padEnd(width, '.');
+    console.log(`[perf] ${padded} ${Math.round(ms)}ms${detail ? ` (${detail})` : ''}`);
+  };
+
   // Modal states
   const [selectedStoryCluster, setSelectedStoryCluster] = useState<StoryCluster | null>(null);
   const [selectedArticleDetail, setSelectedArticleDetail] = useState<Article | null>(null);
@@ -68,64 +91,99 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   // Load News Feed & Clusters
   const loadNews = async () => {
-    setIsLoading(true);
+    const t0 = performance.now();
+    if (newsLaunchTime.current === null) newsLaunchTime.current = t0;
+    const seq = ++feedRequestSeq.current;
+    // Keep existing content visible during refreshes/search/scope changes so a
+    // cached (fast) response does not flash a full skeleton feed.
+    const hasExisting = articles.length > 0 || storyClusters.length > 0;
+    if (!hasExisting) setIsLoading(true);
     setError(null);
 
-    try {
-      // Fetch story clusters asynchronously in non-blocking fashion when in default stories mode
-      const clustersPromise = (feedMode === 'stories' && !searchQuery.trim() && selectedCategory === 'All')
-        ? api.get<{ clusters: StoryCluster[] }>(`/news/clusters?scope=${currentScope}`)
-            .then((res) => res.clusters || [])
-            .catch((err) => {
-              console.warn('Failed to load story clusters, proceeding with feed:', err);
-              return [] as StoryCluster[];
-            })
-        : Promise.resolve([] as StoryCluster[]);
+    // Primary feed. Renders the instant it resolves — it is NOT gated behind
+    // the story-clusters request, so the first screen never waits on RSS or
+    // Gemini briefing generation.
+    const runFeed = async () => {
+      const feedT0 = performance.now();
+      try {
+        let feedPromise: Promise<{ articles: Article[]; activeProvider: string }>;
 
-      // Fetch primary news feed simultaneously
-      let feedPromise: Promise<{ articles: Article[]; activeProvider: string }>;
-
-      if (searchQuery.trim()) {
-        const allowed = recordSearch();
-        if (!allowed) {
-          setIsLoading(false);
-          return;
+        if (searchQuery.trim()) {
+          const allowed = recordSearch();
+          if (!allowed) {
+            if (seq === feedRequestSeq.current && !hasExisting) setIsLoading(false);
+            return;
+          }
+          feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
+            `/news/search?q=${encodeURIComponent(searchQuery)}&scope=${currentScope}`
+          );
+        } else if (selectedCategory !== 'All') {
+          feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
+            `/news/category/${encodeURIComponent(selectedCategory)}?scope=${currentScope}`
+          );
+        } else {
+          feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
+            `/news/feed?scope=${currentScope}`
+          );
         }
-        feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
-          `/news/search?q=${encodeURIComponent(searchQuery)}&scope=${currentScope}`
-        );
-      } else if (selectedCategory !== 'All') {
-        feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
-          `/news/category/${encodeURIComponent(selectedCategory)}?scope=${currentScope}`
-        );
-      } else {
-        feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
-          `/news/feed?scope=${currentScope}`
-        );
-      }
 
-      const [clustersResult, feedResult] = await Promise.all([clustersPromise, feedPromise]);
-
-      setStoryClusters(clustersResult);
-      setArticles(feedResult.articles || []);
-      setActiveProvider(feedResult.activeProvider || 'News Intelligence Engine');
-    } catch (err: any) {
-      console.error('Error fetching news feed', err);
-      if (err instanceof ApiError && err.code === 'GUEST_LIMIT_REACHED') {
-        openAuthModal('register');
-      } else {
-        setError('Unable to load latest news stories. Please check your connection and try again.');
+        const feedResult = await feedPromise;
+        if (seq !== feedRequestSeq.current) return;
+        logPerf('News Feed', performance.now() - feedT0, `${feedResult.articles.length} articles`);
+        setArticles(feedResult.articles || []);
+        setActiveProvider(feedResult.activeProvider || 'News Intelligence Engine');
+      } catch (err: any) {
+        if (seq !== feedRequestSeq.current) return;
+        console.error('Error fetching news feed', err);
+        if (err instanceof ApiError && err.code === 'GUEST_LIMIT_REACHED') {
+          openAuthModal('register');
+        } else {
+          setError('Unable to load latest news stories. Please check your connection and try again.');
+        }
+      } finally {
+        if (seq === feedRequestSeq.current && !hasExisting) setIsLoading(false);
       }
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    // Story clusters: fetched asynchronously in a fully non-blocking fashion.
+    // When they land they replace the flat feed (in stories mode); they never
+    // delay the first paint of the article feed.
+    const runClusters = async () => {
+      const clustersT0 = performance.now();
+      const shouldFetch = feedMode === 'stories' && !searchQuery.trim() && selectedCategory === 'All';
+      if (!shouldFetch) {
+        if (seq === feedRequestSeq.current) setStoryClusters([]);
+        return;
+      }
+      try {
+        const res = await api.get<{ clusters: StoryCluster[] }>(`/news/clusters?scope=${currentScope}`);
+        if (seq !== feedRequestSeq.current) return;
+        logPerf('Story Clusters', performance.now() - clustersT0, `${res.clusters?.length || 0} clusters`);
+        setStoryClusters(res.clusters || []);
+      } catch (err) {
+        if (seq !== feedRequestSeq.current) return;
+        console.warn('Failed to load story clusters, proceeding with feed:', err);
+        setStoryClusters([]);
+      } finally {
+        if (seq === feedRequestSeq.current && !hasExisting) setIsLoading(false);
+      }
+    };
+
+    void runFeed();
+    void runClusters();
+
+    logPerf('HomePage loadNews (launch)', performance.now() - t0);
   };
 
   const loadTrending = async () => {
+    const t0 = performance.now();
+    const seq = ++trendingRequestSeq.current;
     try {
       const data = await api.get<{ articles: Article[]; topics: string[] }>(
         `/news/trending?scope=${currentScope}`
       );
+      if (seq !== trendingRequestSeq.current) return;
+      logPerf('News Trending', performance.now() - t0, `${data.articles.length} articles`);
       setTrendingArticles(data.articles || []);
       setTrendingTopics(data.topics || []);
     } catch (err) {
@@ -140,6 +198,36 @@ export const HomePage: React.FC<HomePageProps> = ({
   useEffect(() => {
     loadTrending();
   }, [currentScope]);
+
+  // Reset the progressive-render window whenever a new dataset arrives.
+  useEffect(() => {
+    setRenderCount(INITIAL_RENDER_COUNT);
+  }, [articles, trendingArticles, storyClusters]);
+
+  // Perf: measure the time from feed request launch to first content commit.
+  useEffect(() => {
+    if (!isLoading && newsLaunchTime.current !== null) {
+      logPerf('React render (first content)', performance.now() - newsLaunchTime.current);
+      newsLaunchTime.current = null;
+    }
+  }, [isLoading]);
+
+  // Mount more article cards as the user scrolls (lazy loading for below-fold
+  // content) so the first screen only renders what is actually visible.
+  useEffect(() => {
+    const sentinel = renderSentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setRenderCount((c) => c + RENDER_BATCH);
+        }
+      },
+      { rootMargin: '600px 0px' }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [articles, trendingArticles, feedMode, selectedCategory, searchQuery, activeView, renderCount]);
 
   // Select article detail with guest limit enforcement
   const handleSelectArticle = async (article: Article) => {
@@ -191,10 +279,10 @@ export const HomePage: React.FC<HomePageProps> = ({
         }}
       />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 w-full flex-1">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 w-full flex-1">
         
         {/* Banner Indicator with Geographic Scope & Feed View Switcher */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 bg-white dark:bg-slate-900/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 bg-white dark:bg-slate-900/80 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-2xs">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -328,7 +416,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                     Showing multi-outlet corroboration
                   </span>
                 </div>
-                {storyClusters.map((cluster) => (
+                {storyClusters.slice(0, renderCount).map((cluster) => (
                   <StoryCard
                     key={cluster.clusterId}
                     cluster={cluster}
@@ -336,6 +424,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                     onCompareCoverage={(art) => setCompareArticle(art)}
                   />
                 ))}
+                {storyClusters.length > renderCount && (
+                  <div ref={renderSentinelRef} className="h-2 w-full" aria-hidden="true" />
+                )}
               </div>
             ) : displayedArticles.length === 0 ? (
               <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 font-ui shadow-2xs">
@@ -376,8 +467,8 @@ export const HomePage: React.FC<HomePageProps> = ({
                         Developing News Stream ({displayedArticles.length - 1} Stories)
                       </span>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      {displayedArticles.slice(1).map((article) => (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 auto-rows-fr">
+                      {displayedArticles.slice(1, renderCount).map((article) => (
                         <ArticleCard
                           key={article.id}
                           article={article}
@@ -388,6 +479,9 @@ export const HomePage: React.FC<HomePageProps> = ({
                         />
                       ))}
                     </div>
+                    {displayedArticles.length > renderCount && (
+                      <div ref={renderSentinelRef} className="h-2 w-full" aria-hidden="true" />
+                    )}
                   </div>
                 )}
               </div>

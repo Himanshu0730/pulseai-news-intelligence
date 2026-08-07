@@ -21,9 +21,117 @@ export interface AISummary {
 
 export interface TranslatedArticle {
   translatedTitle: string;
+  translatedSubtitle?: string;
   translatedDescription: string;
   translatedContent: string;
+  translatedSummary?: {
+    tldr?: string;
+    key_points?: string[];
+    analysis?: {
+      sentiment?: string;
+      bias?: string;
+      reading_time?: string;
+      key_entities?: string[];
+    };
+  };
+  translatedFactCheck?: {
+    claim?: string;
+    verdict?: string;
+    details?: string;
+  };
+  translatedBiasAnalysis?: {
+    details?: string;
+  };
+  translatedStoryCluster?: {
+    title?: string;
+    summary?: string;
+    key_takeaways?: string[];
+    perspective_comparison?: string;
+  };
+  translatedStoryBriefing?: {
+    whatHappened?: string;
+    whyItMatters?: string;
+    confirmedFacts?: string[];
+    uncertainties?: string[];
+  };
   language: string;
+  isCached?: boolean;
+  isFallback?: boolean;
+}
+
+export interface TranslationPayloadOptions {
+  articleId?: string;
+  title: string;
+  subtitle?: string;
+  description: string;
+  content: string;
+  summary?: {
+    tldr?: string;
+    key_points?: string[];
+    analysis?: {
+      sentiment?: string;
+      bias?: string;
+      reading_time?: string;
+      key_entities?: string[];
+    };
+  };
+  factCheck?: {
+    claim?: string;
+    verdict?: string;
+    details?: string;
+  };
+  biasAnalysis?: {
+    details?: string;
+  };
+  storyCluster?: {
+    title?: string;
+    summary?: string;
+    key_takeaways?: string[];
+    perspective_comparison?: string;
+  };
+  storyBriefing?: {
+    whatHappened?: string;
+    whyItMatters?: string;
+    confirmedFacts?: string[];
+    uncertainties?: string[];
+  };
+  targetLanguage: string;
+}
+
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  hi: 'Hindi',
+  bn: 'Bengali',
+  mr: 'Marathi',
+  te: 'Telugu',
+  ta: 'Tamil',
+  gu: 'Gujarati',
+  kn: 'Kannada',
+  ml: 'Malayalam',
+  pa: 'Punjabi',
+  ur: 'Urdu',
+};
+
+function normalizeTranslationPayload(
+  payloadOrTitle: string | TranslationPayloadOptions,
+  descriptionArg?: string,
+  contentArg?: string,
+  targetLanguageArg?: string
+): TranslationPayloadOptions {
+  return typeof payloadOrTitle === 'object'
+    ? payloadOrTitle
+    : {
+        title: payloadOrTitle,
+        description: descriptionArg || '',
+        content: contentArg || '',
+        targetLanguage: targetLanguageArg || 'en',
+      };
+}
+
+function translationCacheKey(opts: TranslationPayloadOptions): string | null {
+  if (opts.targetLanguage === 'en') return null;
+  const articleKey = opts.articleId || opts.title.slice(0, 40).replace(/[^a-zA-Z0-9]/g, '_');
+  return `trans_v2_${articleKey}_${opts.targetLanguage}`;
 }
 
 export const geminiService = {
@@ -101,7 +209,7 @@ Requirements:
   - key_entities: Array of 3 prominent companies, locations, or key subjects mentioned.`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -175,19 +283,92 @@ Requirements:
     }
   },
 
+  // Check translation cache WITHOUT charging guest AI credits (used by routes).
+  async getCachedTranslation(
+    payloadOrTitle: string | TranslationPayloadOptions,
+    descriptionArg?: string,
+    contentArg?: string,
+    targetLanguageArg?: string
+  ): Promise<TranslatedArticle | null> {
+    const opts = normalizeTranslationPayload(payloadOrTitle, descriptionArg, contentArg, targetLanguageArg);
+    const cacheKey = translationCacheKey(opts);
+    if (!cacheKey) return null;
+
+    try {
+      const cached = await db.getCachedNews(cacheKey);
+      if (cached) {
+        console.log(`[Gemini AI] Cache HIT for article translation (${opts.articleId || opts.title.slice(0, 40)}) in ${opts.targetLanguage}`);
+        return { ...cached, isCached: true, isFallback: false };
+      }
+    } catch (e) {
+      console.warn('[Gemini AI] Cache read warning:', e);
+    }
+    return null;
+  },
+
   async translateArticle(
-    title: string,
-    description: string,
-    content: string,
-    targetLanguage: string
+    payloadOrTitle: string | TranslationPayloadOptions,
+    descriptionArg?: string,
+    contentArg?: string,
+    targetLanguageArg?: string
   ): Promise<TranslatedArticle> {
+    const opts: TranslationPayloadOptions = normalizeTranslationPayload(
+      payloadOrTitle,
+      descriptionArg,
+      contentArg,
+      targetLanguageArg
+    );
+
+    const targetLang = opts.targetLanguage || 'en';
+    const targetLangName = LANGUAGE_NAMES[targetLang] || targetLang;
+
+    // If target language is English, return original directly without calling Gemini
+    if (targetLang === 'en') {
+      return {
+        translatedTitle: opts.title,
+        translatedSubtitle: opts.subtitle,
+        translatedDescription: opts.description,
+        translatedContent: opts.content,
+        translatedSummary: opts.summary,
+        translatedFactCheck: opts.factCheck,
+        translatedBiasAnalysis: opts.biasAnalysis,
+        translatedStoryCluster: opts.storyCluster,
+        translatedStoryBriefing: opts.storyBriefing,
+        language: 'en',
+        isCached: false,
+        isFallback: false,
+      };
+    }
+
+    // 1. Check persistent cache
+    const cacheKey = translationCacheKey(opts)!;
+
+    try {
+      const cached = await db.getCachedNews(cacheKey);
+      if (cached) {
+        console.log(`[Gemini AI] Cache HIT for article translation (${opts.articleId || opts.title.slice(0, 40)}) in ${targetLang}`);
+        return { ...cached, isCached: true, isFallback: false };
+      }
+    } catch (e) {
+      console.warn('[Gemini AI] Cache read warning:', e);
+    }
+
+    // Fallback if no Gemini API Key
     if (!config.geminiApiKey) {
       console.warn('[Gemini AI] GEMINI_API_KEY missing, providing original text as fallback');
       return {
-        translatedTitle: title,
-        translatedDescription: description,
-        translatedContent: content,
-        language: targetLanguage,
+        translatedTitle: opts.title,
+        translatedSubtitle: opts.subtitle,
+        translatedDescription: opts.description,
+        translatedContent: opts.content,
+        translatedSummary: opts.summary,
+        translatedFactCheck: opts.factCheck,
+        translatedBiasAnalysis: opts.biasAnalysis,
+        translatedStoryCluster: opts.storyCluster,
+        translatedStoryBriefing: opts.storyBriefing,
+        language: targetLang,
+        isCached: false,
+        isFallback: true,
       };
     }
 
@@ -201,17 +382,39 @@ Requirements:
         },
       });
 
-      const prompt = `Translate the following news article title, description, and main body text into language code "${targetLanguage}".
-Keep publisher brand names, proper names of people, and URLs unchanged.
+      const prompt = `You are a professional news translator and localization specialist.
+Translate the following news article and associated metadata strictly into ${targetLangName} (Language Code: ${targetLang}).
 
-Title: ${title}
-Description: ${description}
-Content: ${content}
+STRICT RULES & CONSTRAINTS:
+1. Translate ALL user-facing text fields accurately into ${targetLangName}.
+2. DO NOT translate publisher names (e.g., "The Hindu", "Reuters", "BBC", "ISRO"), author names, publication dates, URLs, or numerical metrics/scores.
+3. PRESERVE ALL FORMATTING: Retain paragraph breaks (double newlines \\n\\n), bullet points (• or -), quote marks, headings, and markdown links.
+4. Keep numbers and numerical data intact.
 
-Return JSON with keys: "translatedTitle", "translatedDescription", "translatedContent".`;
+ARTICLE DATA TO TRANSLATE:
+Title: ${opts.title}
+Subtitle: ${opts.subtitle || ''}
+Description: ${opts.description}
+Content/Body: ${opts.content}
+${opts.summary ? `Summary TLDR: ${opts.summary.tldr || ''}\nSummary Key Points: ${JSON.stringify(opts.summary.key_points || [])}` : ''}
+${opts.factCheck ? `Fact Check Claim: ${opts.factCheck.claim || ''}\nFact Check Verdict: ${opts.factCheck.verdict || ''}\nFact Check Details: ${opts.factCheck.details || ''}` : ''}
+${opts.biasAnalysis ? `Bias Analysis Details: ${opts.biasAnalysis.details || ''}` : ''}
+${opts.storyCluster ? `Story Cluster Title: ${opts.storyCluster.title || ''}\nStory Cluster Summary: ${opts.storyCluster.summary || ''}\nStory Cluster Key Takeaways: ${JSON.stringify(opts.storyCluster.key_takeaways || [])}\nPerspective Comparison: ${opts.storyCluster.perspective_comparison || ''}` : ''}
+${opts.storyBriefing ? `Story Briefing What Happened: ${opts.storyBriefing.whatHappened || ''}\nStory Briefing Why It Matters: ${opts.storyBriefing.whyItMatters || ''}\nStory Briefing Confirmed Facts: ${JSON.stringify(opts.storyBriefing.confirmedFacts || [])}\nStory Briefing Uncertainties: ${JSON.stringify(opts.storyBriefing.uncertainties || [])}` : ''}
+
+Return JSON with keys matching the schema:
+- translatedTitle (string)
+- translatedSubtitle (string)
+- translatedDescription (string)
+- translatedContent (string)
+- translatedSummary: { tldr, key_points, analysis } (if summary provided)
+- translatedFactCheck: { claim, verdict, details } (if factCheck provided)
+- translatedBiasAnalysis: { details } (if biasAnalysis provided)
+- translatedStoryCluster: { title, summary, key_takeaways, perspective_comparison } (if storyCluster provided)
+- translatedStoryBriefing: { whatHappened, whyItMatters, confirmedFacts, uncertainties } (if storyBriefing provided)`;
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.6-flash',
         contents: prompt,
         config: {
           responseMimeType: 'application/json',
@@ -219,8 +422,72 @@ Return JSON with keys: "translatedTitle", "translatedDescription", "translatedCo
             type: Type.OBJECT,
             properties: {
               translatedTitle: { type: Type.STRING },
+              translatedSubtitle: { type: Type.STRING },
               translatedDescription: { type: Type.STRING },
               translatedContent: { type: Type.STRING },
+              translatedSummary: {
+                type: Type.OBJECT,
+                properties: {
+                  tldr: { type: Type.STRING },
+                  key_points: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                  },
+                  analysis: {
+                    type: Type.OBJECT,
+                    properties: {
+                      sentiment: { type: Type.STRING },
+                      bias: { type: Type.STRING },
+                      reading_time: { type: Type.STRING },
+                      key_entities: {
+                        type: Type.ARRAY,
+                        items: { type: Type.STRING },
+                      },
+                    },
+                  },
+                },
+              },
+              translatedFactCheck: {
+                type: Type.OBJECT,
+                properties: {
+                  claim: { type: Type.STRING },
+                  verdict: { type: Type.STRING },
+                  details: { type: Type.STRING },
+                },
+              },
+              translatedBiasAnalysis: {
+                type: Type.OBJECT,
+                properties: {
+                  details: { type: Type.STRING },
+                },
+              },
+              translatedStoryCluster: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  summary: { type: Type.STRING },
+                  key_takeaways: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                  },
+                  perspective_comparison: { type: Type.STRING },
+                },
+              },
+              translatedStoryBriefing: {
+                type: Type.OBJECT,
+                properties: {
+                  whatHappened: { type: Type.STRING },
+                  whyItMatters: { type: Type.STRING },
+                  confirmedFacts: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                  },
+                  uncertainties: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                  },
+                },
+              },
             },
             required: ['translatedTitle', 'translatedDescription', 'translatedContent'],
           },
@@ -228,19 +495,39 @@ Return JSON with keys: "translatedTitle", "translatedDescription", "translatedCo
       });
 
       const parsed = JSON.parse(response.text || '{}');
-      return {
-        translatedTitle: parsed.translatedTitle || title,
-        translatedDescription: parsed.translatedDescription || description,
-        translatedContent: parsed.translatedContent || content,
-        language: targetLanguage,
+      const result: TranslatedArticle = {
+        translatedTitle: parsed.translatedTitle || opts.title,
+        translatedSubtitle: parsed.translatedSubtitle || opts.subtitle,
+        translatedDescription: parsed.translatedDescription || opts.description,
+        translatedContent: parsed.translatedContent || opts.content,
+        translatedSummary: parsed.translatedSummary || opts.summary,
+        translatedFactCheck: parsed.translatedFactCheck || opts.factCheck,
+        translatedBiasAnalysis: parsed.translatedBiasAnalysis || opts.biasAnalysis,
+        translatedStoryCluster: parsed.translatedStoryCluster || opts.storyCluster,
+        translatedStoryBriefing: parsed.translatedStoryBriefing || opts.storyBriefing,
+        language: targetLang,
+        isCached: false,
+        isFallback: false,
       };
+
+      await db.setCachedNews(cacheKey, result, 86400);
+
+      return result;
     } catch (err) {
       console.error('[Gemini AI] Error translating article:', err);
       return {
-        translatedTitle: title,
-        translatedDescription: description,
-        translatedContent: content,
-        language: targetLanguage,
+        translatedTitle: opts.title,
+        translatedSubtitle: opts.subtitle,
+        translatedDescription: opts.description,
+        translatedContent: opts.content,
+        translatedSummary: opts.summary,
+        translatedFactCheck: opts.factCheck,
+        translatedBiasAnalysis: opts.biasAnalysis,
+        translatedStoryCluster: opts.storyCluster,
+        translatedStoryBriefing: opts.storyBriefing,
+        language: targetLang,
+        isCached: false,
+        isFallback: true,
       };
     }
   },

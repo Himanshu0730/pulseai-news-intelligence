@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
 import { db } from '../db/index.js';
+import { AppError } from '../middleware/errorHandler.js';
 
 export interface TokenPayload {
   userId: string;
@@ -12,7 +13,7 @@ export const authService = {
   async register(email: string, password: string, name: string) {
     const existing = await db.getUserByEmail(email);
     if (existing) {
-      throw new Error('An account with this email address already exists');
+      throw new AppError('An account with this email address already exists', 409, 'EMAIL_IN_USE');
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -63,7 +64,7 @@ export const authService = {
       if (password !== 'DemoPulseAI123!') {
         const isMatch = await bcrypt.compare(password, demoUser.password_hash);
         if (!isMatch) {
-          throw new Error('Invalid email or password');
+          throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
         }
       }
 
@@ -84,12 +85,12 @@ export const authService = {
 
     const user = await db.getUserByEmail(cleanEmail);
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
     }
 
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      throw new Error('Invalid email or password');
+      throw new AppError('Invalid email or password', 401, 'INVALID_CREDENTIALS');
     }
 
     const token = this.generateToken({ userId: user.id, email: user.email });
@@ -115,14 +116,14 @@ export const authService = {
     try {
       return jwt.verify(token, config.jwtSecret) as TokenPayload;
     } catch (err) {
-      throw new Error('Invalid or expired authentication token');
+      throw new AppError('Invalid or expired authentication token', 401, 'INVALID_TOKEN');
     }
   },
 
   async getCurrentUser(userId: string) {
     const user = await db.getUserById(userId);
     if (!user) {
-      throw new Error('User account not found');
+      throw new AppError('User account not found', 404, 'USER_NOT_FOUND');
     }
 
     const interests = await db.getUserInterests(userId);

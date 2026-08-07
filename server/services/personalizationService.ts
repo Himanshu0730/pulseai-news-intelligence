@@ -70,20 +70,25 @@ export class PersonalizationService {
       const ageHours = Math.max(0, (Date.now() - new Date(article.publishedAt).getTime()) / (1000 * 3600));
       const freshness = Math.max(0, Math.min(100, 100 - ageHours * 3.5));
 
-      // 5. Engagement (0 - 100)
-      const readTime = article.readTimeMinutes || 3;
-      const engagement = Math.min(100, Math.max(40, readTime * 15));
+      // 5. Publisher Trust & Credibility (0 - 100)
+      const publisherTrust = article.source?.credibilityScore || article.credibilityScore || 80;
 
-      // 6. Global Trending Score (0 - 100)
+      // 6. Corroborating Sources Boost (0 - 100)
+      const corroborationCount = article.corroboratingSourcesCount || (article.supportingSources?.length ? article.supportingSources.length + 1 : 1);
+      const corroborationBoost = Math.min(100, corroborationCount * 25);
+
+      // 7. Global Trending Score (0 - 100)
       const trendingScore = article.trendingScore || 50;
 
-      // Weighted Score
+      // Multi-Signal Composite Score Algorithm:
+      // Combines user preference, geographic scope, freshness, publisher credibility, and cross-source corroboration
       const finalScore = Math.round(
-        0.30 * interestMatch +
-        0.20 * behavioralMatch +
-        0.20 * geographicRelevance +
+        0.25 * interestMatch +
+        0.15 * behavioralMatch +
+        0.15 * geographicRelevance +
         0.15 * freshness +
-        0.10 * engagement +
+        0.15 * publisherTrust +
+        0.10 * corroborationBoost +
         0.05 * trendingScore
       );
 
@@ -110,7 +115,7 @@ export class PersonalizationService {
           behavioralMatch,
           geographicRelevance,
           freshness: Math.round(freshness),
-          engagement,
+          engagement: Math.round(corroborationBoost),
           trendingScore,
         },
       };

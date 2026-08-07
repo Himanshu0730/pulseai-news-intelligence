@@ -24,33 +24,29 @@ export const ArticleCardSkeleton: React.FC = () => {
 
 export const HeroArticleSkeleton: React.FC = () => {
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden animate-pulse shadow-2xs">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
-        {/* Image Canvas */}
-        <div className="lg:col-span-7 h-56 sm:h-64 lg:min-h-[340px] bg-slate-200 dark:bg-slate-800" />
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 animate-pulse shadow-2xs space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-6 w-24 bg-slate-200 dark:bg-slate-800 rounded-full" />
+          <div className="h-5 w-28 bg-slate-200 dark:bg-slate-800 rounded-md" />
+        </div>
+        <div className="h-5 w-20 bg-slate-200 dark:bg-slate-800 rounded" />
+      </div>
 
-        {/* Editorial Headline & Brief Column */}
-        <div className="lg:col-span-5 p-5 sm:p-6 flex flex-col justify-between space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="h-4 w-28 bg-slate-200 dark:bg-slate-800 rounded" />
-              <div className="h-4 w-16 bg-slate-200 dark:bg-slate-800 rounded" />
-            </div>
-            <div className="h-6 w-11/12 bg-slate-200 dark:bg-slate-800 rounded" />
-            <div className="h-6 w-4/5 bg-slate-200 dark:bg-slate-800 rounded" />
-            <div className="h-6 w-3/5 bg-slate-200 dark:bg-slate-800 rounded" />
-            <div className="h-4 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-            <div className="h-4 w-5/6 bg-slate-200 dark:bg-slate-800 rounded" />
-            <div className="p-3 bg-sky-100 dark:bg-sky-950/50 rounded-xl border border-sky-100 dark:border-sky-900/60 space-y-2">
-              <div className="h-4 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
-              <div className="h-3 w-full bg-slate-200 dark:bg-slate-800 rounded" />
-              <div className="h-3 w-4/5 bg-slate-200 dark:bg-slate-800 rounded" />
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="md:col-span-2 space-y-3">
+          <div className="h-7 bg-slate-200 dark:bg-slate-800 rounded w-11/12" />
+          <div className="h-7 bg-slate-200 dark:bg-slate-800 rounded w-4/5" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-full mt-3" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-11/12" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
+          <div className="pt-3 flex gap-2">
+            <div className="h-7 w-28 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+            <div className="h-7 w-32 bg-slate-200 dark:bg-slate-800 rounded-lg" />
           </div>
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-            <div className="h-9 w-28 bg-slate-200 dark:bg-slate-800 rounded-xl" />
-            <div className="h-9 w-24 bg-slate-200 dark:bg-slate-800 rounded-xl" />
-          </div>
+        </div>
+        <div className="md:col-span-1">
+          <div className="w-full h-48 md:h-full bg-slate-200 dark:bg-slate-800 rounded-xl" />
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { createServer as createViteServer } from 'vite';
 
 import { app } from './server/app.js';
 import { config } from './server/config.js';
+import { newsService } from './server/providers/NewsService.js';
 
 async function startServer() {
   // Vite middleware in development
@@ -27,6 +28,11 @@ async function startServer() {
 
   app.listen(config.port, host, () => {
     console.log(`🚀 PulseAI Server running on http://${displayHost}:${config.port}`);
+    // Warm default-scope caches in the background so the first request after boot
+    // is served from cache instead of paying the full RSS/API aggregation cost.
+    setTimeout(() => {
+      newsService.warmUpCaches();
+    }, 250);
   });
 }
 

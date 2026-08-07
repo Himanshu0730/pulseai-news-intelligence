@@ -1,248 +1,244 @@
+import Parser from 'rss-parser';
 import { generateDeterministicArticleId, normalizeUrl } from '../utils/urlNormalizer.js';
-import { Article, NewsFetchOptions, NewsProvider } from './types.js';
+import { Article, NewsFetchOptions, NewsProvider, SourceType } from './types.js';
+
+interface CategoryFeedConfig {
+  url: string;
+  sourceName: string;
+  category: string;
+  sourceType: SourceType;
+  credibilityScore: number;
+  region: 'India' | 'Indian State' | 'South Asia' | 'Global' | 'International';
+  /** Optional per-feed timeout override (ms). Defaults to the parser timeout (3000ms). */
+  timeoutMs?: number;
+}
+
+/**
+ * Curated RSS Feeds categorized by topic and region
+ */
+const RSS_FEEDS_BY_CATEGORY: Record<string, CategoryFeedConfig[]> = {
+  Technology: [
+    { url: 'https://techcrunch.com/feed/', sourceName: 'TechCrunch', category: 'Technology', sourceType: 'INDEPENDENT', credibilityScore: 92, region: 'Global' },
+    { url: 'https://feeds.arstechnica.com/arstechnica/index', sourceName: 'Ars Technica', category: 'Technology', sourceType: 'ESTABLISHED', credibilityScore: 94, region: 'Global' },
+    { url: 'https://www.technologyreview.com/feed/', sourceName: 'MIT Tech Review', category: 'Technology', sourceType: 'ESTABLISHED', credibilityScore: 96, region: 'Global' },
+    { url: 'https://indianexpress.com/section/technology/feed/', sourceName: 'Indian Express Tech', category: 'Technology', sourceType: 'ESTABLISHED', credibilityScore: 91, region: 'India' },
+  ],
+  'AI & ML': [
+    { url: 'https://venturebeat.com/category/ai/feed/', sourceName: 'VentureBeat AI', category: 'AI & ML', sourceType: 'INDEPENDENT', credibilityScore: 90, region: 'Global' },
+    { url: 'https://www.technologyreview.com/topic/artificial-intelligence/feed/', sourceName: 'MIT Tech Review AI', category: 'AI & ML', sourceType: 'ESTABLISHED', credibilityScore: 96, region: 'Global' },
+    { url: 'https://techcrunch.com/category/artificial-intelligence/feed/', sourceName: 'TechCrunch AI', category: 'AI & ML', sourceType: 'INDEPENDENT', credibilityScore: 92, region: 'Global' },
+  ],
+  Business: [
+    { url: 'https://economictimes.indiatimes.com/rssfeedstopstories.cms', sourceName: 'Economic Times', category: 'Business', sourceType: 'ESTABLISHED', credibilityScore: 93, region: 'India' },
+    { url: 'https://www.business-standard.com/rss/home_page_top_stories.rss', sourceName: 'Business Standard', category: 'Business', sourceType: 'ESTABLISHED', credibilityScore: 92, region: 'India' },
+    { url: 'https://www.thehindubusinessline.com/feed/', sourceName: 'The Hindu BusinessLine', category: 'Business', sourceType: 'ESTABLISHED', credibilityScore: 93, region: 'India' },
+  ],
+  Sports: [
+    { url: 'https://www.espn.com/espn/rss/news', sourceName: 'ESPN', category: 'Sports', sourceType: 'ESTABLISHED', credibilityScore: 92, region: 'Global' },
+    { url: 'https://feeds.bbci.co.uk/sport/rss.xml', sourceName: 'BBC Sport', category: 'Sports', sourceType: 'ESTABLISHED', credibilityScore: 95, region: 'Global' },
+    { url: 'https://feeds.feedburner.com/ndtvsports-latest', sourceName: 'NDTV Sports', category: 'Sports', sourceType: 'ESTABLISHED', credibilityScore: 89, region: 'India' },
+    { url: 'https://indianexpress.com/section/sports/feed/', sourceName: 'Indian Express Sports', category: 'Sports', sourceType: 'ESTABLISHED', credibilityScore: 90, region: 'India' },
+  ],
+  Science: [
+    { url: 'https://www.nature.com/nature.rss', sourceName: 'Nature Journal', category: 'Science', sourceType: 'ESTABLISHED', credibilityScore: 98, region: 'Global' },
+    { url: 'https://www.sciencedaily.com/rss/all.xml', sourceName: 'Science Daily', category: 'Science', sourceType: 'ESTABLISHED', credibilityScore: 92, region: 'Global' },
+    { url: 'https://www.space.com/feeds/all', sourceName: 'Space.com', category: 'Science', sourceType: 'ESTABLISHED', credibilityScore: 91, region: 'Global' },
+  ],
+  Health: [
+    { url: 'https://medicalxpress.com/rss-feed/', sourceName: 'Medical Xpress', category: 'Health', sourceType: 'INDEPENDENT', credibilityScore: 91, region: 'Global' },
+    { url: 'https://feeds.bbci.co.uk/news/health/rss.xml', sourceName: 'BBC Health', category: 'Health', sourceType: 'ESTABLISHED', credibilityScore: 95, region: 'Global' },
+  ],
+  Politics: [
+    { url: 'https://feeds.bbci.co.uk/news/politics/rss.xml', sourceName: 'BBC Politics', category: 'Politics', sourceType: 'ESTABLISHED', credibilityScore: 95, region: 'Global' },
+    { url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1', sourceName: 'Press Information Bureau (PIB)', category: 'Politics', sourceType: 'PRIMARY', credibilityScore: 98, region: 'India', timeoutMs: 3000 },
+    { url: 'https://www.thehindu.com/news/national/feeder/default.rss', sourceName: 'The Hindu National', category: 'Politics', sourceType: 'ESTABLISHED', credibilityScore: 94, region: 'India' },
+  ],
+  India: [
+    { url: 'https://www.thehindu.com/news/national/feeder/default.rss', sourceName: 'The Hindu', category: 'India', sourceType: 'ESTABLISHED', credibilityScore: 94, region: 'India' },
+    { url: 'https://indianexpress.com/section/india/feed/', sourceName: 'Indian Express', category: 'India', sourceType: 'ESTABLISHED', credibilityScore: 92, region: 'India' },
+    { url: 'https://feeds.feedburner.com/ndtvnews-india-news', sourceName: 'NDTV India', category: 'India', sourceType: 'ESTABLISHED', credibilityScore: 89, region: 'India' },
+  ],
+  World: [
+    { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', sourceName: 'BBC World News', category: 'World', sourceType: 'ESTABLISHED', credibilityScore: 95, region: 'Global' },
+    { url: 'https://www.theguardian.com/world/rss', sourceName: 'The Guardian World', category: 'World', sourceType: 'ESTABLISHED', credibilityScore: 92, region: 'Global' },
+  ],
+  'World News': [
+    { url: 'https://feeds.bbci.co.uk/news/world/rss.xml', sourceName: 'BBC World News', category: 'World News', sourceType: 'ESTABLISHED', credibilityScore: 95, region: 'Global' },
+    { url: 'https://www.theguardian.com/world/rss', sourceName: 'The Guardian World', category: 'World News', sourceType: 'ESTABLISHED', credibilityScore: 92, region: 'Global' },
+  ],
+  Entertainment: [
+    { url: 'https://variety.com/feed/', sourceName: 'Variety', category: 'Entertainment', sourceType: 'ESTABLISHED', credibilityScore: 91, region: 'Global' },
+    { url: 'https://indianexpress.com/section/entertainment/feed/', sourceName: 'Indian Express Entertainment', category: 'Entertainment', sourceType: 'ESTABLISHED', credibilityScore: 90, region: 'India' },
+  ],
+  'Climate & Energy': [
+    { url: 'https://www.carbonbrief.org/feed/', sourceName: 'Carbon Brief', category: 'Climate & Energy', sourceType: 'INDEPENDENT', credibilityScore: 93, region: 'Global' },
+    { url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', sourceName: 'BBC Science & Environment', category: 'Climate & Energy', sourceType: 'ESTABLISHED', credibilityScore: 94, region: 'Global' },
+    { url: 'https://www.theguardian.com/environment/climate-crisis/rss', sourceName: 'The Guardian Climate', category: 'Climate & Energy', sourceType: 'ESTABLISHED', credibilityScore: 93, region: 'Global' },
+  ],
+};
 
 export class CuratedRSSProvider implements NewsProvider {
   name = 'CuratedLiveRSS';
+  private parser: Parser;
+  private slowParser: Parser;
+
+  constructor() {
+    const parserOptions = {
+      timeout: 3000, // 3-second timeout per feed by default
+      customFields: {
+        item: [
+          ['media:content', 'mediaContent'],
+          ['media:thumbnail', 'mediaThumbnail'],
+          ['enclosure', 'enclosure'],
+          ['content:encoded', 'contentEncoded'],
+        ],
+      },
+    };
+    this.parser = new Parser(parserOptions);
+    // Dedicated parser for feeds (e.g. PIB) that are slower to respond.
+    this.slowParser = new Parser({ ...parserOptions, timeout: 3000 });
+  }
 
   public isAvailable(): boolean {
     return true;
   }
 
-  private static RAW_FALLBACK_ARTICLES = [
-    {
-      title: 'India Semiconductor & AI Mission Approves New Fab Facilities and Supercomputing Clusters',
-      description: 'Union Cabinet expands the India Semiconductor Mission with $10B allocation, funding 3 new chip fabrication plants in Gujarat and Assam alongside a 10,000-GPU national AI compute grid.',
-      content: 'New Delhi: The Cabinet Committee on Economic Affairs has approved landmark capital support for advanced 28nm silicon manufacturing and a decentralized GPU compute network for Indian startups and academic institutes. The initiative aims to build sovereign AI infrastructure and position India as a global electronics manufacturing hub.',
-      url: 'https://pib.gov.in/PressReleasePage.aspx?PRID=2012345',
-      urlToImage: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
-      source: {
-        name: 'Press Information Bureau (PIB)',
-        type: 'PRIMARY' as const,
-        isPrimary: true,
-        credibilityScore: 98,
-      },
-      category: 'AI & ML',
-      author: 'Ministry of Electronics & IT',
-      readTimeMinutes: 4,
-      trendingScore: 99,
-      region: 'India' as const,
-      sourceType: 'PRIMARY' as const,
-      credibilityScore: 98,
-      confidenceLevel: 'High confidence' as const,
-      corroboratingSourcesCount: 12,
-      storyClusterId: 'cluster_india_semiconductor_2026',
-      primarySourceUrl: 'https://pib.gov.in',
-    },
-    {
-      title: 'RBI Enhances UPI Credit Line Framework & Unveils Real-Time Cross-Border Remittance Portal',
-      description: 'The Reserve Bank of India introduces instant pre-sanctioned credit lines via UPI apps and integrates NPCI International with ASEAN banking networks for zero-fee cross-border transactions.',
-      content: 'Mumbai: In its bi-monthly monetary policy briefing, RBI Governor announced major fintech innovations allowing consumers to access pre-approved bank credit directly through UPI handles. Simultaneously, cross-border digital rupee clearing was enabled for Singapore, UAE, and Sri Lanka corridors.',
-      url: 'https://rbi.org.in/scripts/BS_PressReleaseDisplay.aspx',
-      urlToImage: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 55).toISOString(),
-      source: {
-        name: 'The Hindu Businessline',
-        type: 'ESTABLISHED' as const,
-        credibilityScore: 94,
-      },
-      category: 'Business',
-      author: 'Special Correspondent',
-      readTimeMinutes: 5,
-      trendingScore: 96,
-      region: 'India' as const,
-      sourceType: 'ESTABLISHED' as const,
-      credibilityScore: 94,
-      confidenceLevel: 'High confidence' as const,
-      corroboratingSourcesCount: 9,
-      storyClusterId: 'cluster_rbi_upi_2026',
-      primarySourceUrl: 'https://rbi.org.in',
-    },
-    {
-      title: 'ISRO Successfully Executes Crew Escape System & Orbital Capsule Simulation for Gaganyaan',
-      description: 'Indian Space Research Organisation validates autonomous crew module recovery off the Bay of Bengal coast ahead of India’s first crewed spaceflight mission.',
-      content: 'Sriharikota: ISRO completed a flawless test flight of the TV-D2 abort mission, proving high-altitude crew ejection safety mechanisms. The Indian Navy and Coast Guard retrieved the splashdown capsule within 18 minutes of landing.',
-      url: 'https://www.isro.gov.in/Gaganyaan.html',
-      urlToImage: 'https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 110).toISOString(),
-      source: {
-        name: 'The Indian Express',
-        type: 'ESTABLISHED' as const,
-        credibilityScore: 95,
-      },
-      category: 'Science',
-      author: 'Space Science Desk',
-      readTimeMinutes: 4,
-      trendingScore: 95,
-      region: 'India' as const,
-      sourceType: 'ESTABLISHED' as const,
-      credibilityScore: 95,
-      confidenceLevel: 'High confidence' as const,
-      corroboratingSourcesCount: 15,
-      storyClusterId: 'cluster_isro_gaganyaan',
-      primarySourceUrl: 'https://www.isro.gov.in',
-    },
-    {
-      title: 'FACT CHECK: Viral Notice Claiming New Annual Capital Gains Tax Surcharge is False',
-      description: 'PIB Fact Check issues official clarification refuting fabricated circular shared on social media regarding changes to retail stock investment taxes.',
-      content: 'New Delhi: A fake notification circulating on messaging platforms claiming a mandatory 5% extra tax on retail mutual fund redemptions has been officially debunked by PIB Fact Check. The Ministry of Finance confirmed no tax structure changes have been notified.',
-      url: 'https://pib.gov.in/FactCheck',
-      urlToImage: 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 140).toISOString(),
-      source: {
-        name: 'PIB Fact Check',
-        type: 'FACT_CHECK' as const,
-        isFactCheck: true,
-        credibilityScore: 99,
-      },
-      category: 'Business',
-      author: 'PIB Verification Desk',
-      readTimeMinutes: 2,
-      trendingScore: 91,
-      region: 'India' as const,
-      sourceType: 'FACT_CHECK' as const,
-      credibilityScore: 99,
-      confidenceLevel: 'High confidence' as const,
-      corroboratingSourcesCount: 6,
-      factCheckStatus: {
-        available: true,
-        publisher: 'PIB Fact Check',
-        claim: 'New 5% mandatory surcharge on mutual fund redemptions',
-        verdict: 'FALSE - Fabricated Document',
-        url: 'https://pib.gov.in/FactCheck',
-      },
-    },
-    {
-      title: 'Ground Report: How Solar Micro-Storage and AI Irrigation are Transforming Agri in Maharashtra',
-      description: 'In-depth video investigation across Nashik and Solapur districts reveals farmer cooperatives utilizing IoT sensors to cut water consumption by 40%.',
-      content: 'Nashik, Maharashtra: Smallholder farmers in Western Maharashtra are pioneering community-owned solar cold storage and micro-drip networks. Yields for onion and pomegranate crops have surged while input energy costs plummeted.',
-      url: 'https://youtube.com/watch?v=agri_tech_maharashtra',
-      urlToImage: 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 210).toISOString(),
-      source: {
-        name: 'The Lallantop',
-        type: 'VIDEO' as const,
-        credibilityScore: 88,
-      },
-      category: 'Climate & Energy',
-      author: 'Saurabh Dwivedi Desk',
-      readTimeMinutes: 6,
-      trendingScore: 89,
-      region: 'Indian State' as const,
-      sourceType: 'VIDEO' as const,
-      credibilityScore: 88,
-      confidenceLevel: 'Moderate confidence' as const,
-      corroboratingSourcesCount: 4,
-    },
-    {
-      title: 'ONDC Crosses 12 Million Monthly Transactions as Regional Merchants Adopt Open Commerce',
-      description: 'Open Network for Digital Commerce logs record growth across Tier 2 and Tier 3 Indian cities, breaking logistics monopolies for local kirana stores.',
-      content: 'Bengaluru: India’s open digital commerce protocol reported a 300% year-on-year surge in food delivery and grocery fulfillment orders. Independent logistics partners and hyper-local sellers report higher profit margins.',
-      url: 'https://techcrunch.com/2026/01/ondc-india-growth',
-      urlToImage: 'https://images.unsplash.com/photo-1556742049-0a67daf40955?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 320).toISOString(),
-      source: {
-        name: 'TechCrunch India',
-        type: 'INDEPENDENT' as const,
-        credibilityScore: 91,
-      },
-      category: 'Technology',
-      author: 'Manish Singh',
-      readTimeMinutes: 4,
-      trendingScore: 87,
-      region: 'India' as const,
-      sourceType: 'INDEPENDENT' as const,
-      credibilityScore: 91,
-      confidenceLevel: 'High confidence' as const,
-      corroboratingSourcesCount: 7,
-    },
-    {
-      title: 'Next-Generation AI Reasoning Models Reach New Benchmarks in Scientific Research',
-      description: 'Frontier AI models autonomously synthesize complex biochemical literature, uncovering novel protein folding pathways and accelerating material science breakthroughs.',
-      content: 'Artificial Intelligence systems have crossed a major threshold in scientific reasoning. Laboratories worldwide report that recent frontier models can digest thousands of research papers concurrently, formulating testable hypotheses in molecular biology and quantum chemistry.',
-      url: 'https://technologyreview.com/2026/ai-scientific-reasoning',
-      urlToImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 400).toISOString(),
-      source: {
-        name: 'MIT Technology Review',
-        type: 'ESTABLISHED' as const,
-        credibilityScore: 93,
-      },
-      category: 'AI & ML',
-      author: 'Dr. Elena Rostova',
-      readTimeMinutes: 4,
-      trendingScore: 92,
-      region: 'Global' as const,
-      sourceType: 'ESTABLISHED' as const,
-      credibilityScore: 93,
-      confidenceLevel: 'High confidence' as const,
-      corroboratingSourcesCount: 11,
-    },
-    {
-      title: 'Reports Differ on Q4 Global Silicon Yield Projections Amid Equipment Import Rules',
-      description: 'Leading research analysts issue conflicting forecasts regarding sub-3nm wafer availability for mobile processor manufacturers.',
-      content: 'Financial research firms disagree on near-term semiconductor output. While Gartner projects a 12% supply expansion, TrendForce cautions that tool calibration bottlenecks may constrain high-end mobile chip yields through Q4.',
-      url: 'https://reuters.com/technology/semiconductor-yield-q4',
-      urlToImage: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
-      publishedAt: new Date(Date.now() - 1000 * 60 * 500).toISOString(),
-      source: {
-        name: 'Reuters World',
-        type: 'ESTABLISHED' as const,
-        credibilityScore: 92,
-      },
-      category: 'Technology',
-      author: 'Technology News Desk',
-      readTimeMinutes: 5,
-      trendingScore: 84,
-      region: 'Global' as const,
-      sourceType: 'ESTABLISHED' as const,
-      credibilityScore: 92,
-      confidenceLevel: 'Conflicting reports' as const,
-      corroboratingSourcesCount: 5,
-      disputedInfo: {
-        isDisputed: true,
-        details: 'Market intelligence firms Gartner and TrendForce hold contrasting estimates on sub-3nm chip wafer yields for Q4.',
-      },
-    },
-  ];
-
-  private static getArticles(): Article[] {
-    return CuratedRSSProvider.RAW_FALLBACK_ARTICLES.map((a) => {
-      const canonical = normalizeUrl(a.url);
-      const articleId = generateDeterministicArticleId(canonical, a.title);
-      return {
-        ...a,
-        id: articleId,
-        canonicalUrl: canonical,
-      };
-    });
+  /**
+   * Utility to extract image URL from feed item
+   */
+  private extractImageUrl(item: any): string {
+    if (item.mediaContent && item.mediaContent.$ && item.mediaContent.$.url) {
+      return item.mediaContent.$.url;
+    }
+    if (item.mediaThumbnail && item.mediaThumbnail.$ && item.mediaThumbnail.$.url) {
+      return item.mediaThumbnail.$.url;
+    }
+    if (item.enclosure && item.enclosure.url) {
+      return item.enclosure.url;
+    }
+    // Fallback: extract img tag src from description or content
+    const html = item.content || item.description || '';
+    const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (imgMatch && imgMatch[1]) {
+      return imgMatch[1];
+    }
+    return 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80';
   }
 
+  /**
+   * Clean HTML tags and sanitize summary text
+   */
+  private cleanText(text?: string): string {
+    if (!text) return '';
+    return text.replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim();
+  }
+
+  /**
+   * Fetch live feed items for a single feed configuration
+   */
+  private async fetchSingleFeed(feedConfig: CategoryFeedConfig): Promise<Article[]> {
+    try {
+      const parser = feedConfig.timeoutMs ? this.slowParser : this.parser;
+      const feed = await parser.parseURL(feedConfig.url);
+      const articles: Article[] = [];
+
+      for (const item of feed.items || []) {
+        if (!item.title || !item.link) continue;
+
+        const canonical = normalizeUrl(item.link);
+        const title = this.cleanText(item.title);
+        // Guard against items whose body is only media (e.g. an <img> without text):
+        // the raw snippet is truthy but cleans to an empty string.
+        let description = this.cleanText(item.contentSnippet || item.summary || item.content || title);
+        if (!description) description = title;
+        // Prefer the full content:encoded payload when the publisher provides it.
+        const fullContent = this.cleanText(item.contentEncoded || item.content || description);
+        const articleId = generateDeterministicArticleId(canonical, title);
+        const pubDate = item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString();
+
+        articles.push({
+          id: articleId,
+          title,
+          description: description.substring(0, 300),
+          content: fullContent.substring(0, 4000),
+          url: item.link,
+          canonicalUrl: canonical,
+          urlToImage: this.extractImageUrl(item),
+          publishedAt: pubDate,
+          source: {
+            name: feedConfig.sourceName,
+            type: feedConfig.sourceType,
+            isPrimary: feedConfig.sourceType === 'PRIMARY',
+            credibilityScore: feedConfig.credibilityScore,
+          },
+          category: feedConfig.category,
+          author: item.creator || item.author || feedConfig.sourceName,
+          readTimeMinutes: Math.max(2, Math.ceil(description.split(' ').length / 50)),
+          trendingScore: 85,
+          region: feedConfig.region,
+          sourceType: feedConfig.sourceType,
+          credibilityScore: feedConfig.credibilityScore,
+          confidenceLevel: 'High confidence',
+          corroboratingSourcesCount: 1,
+        });
+      }
+
+      return articles;
+    } catch (err) {
+      console.warn(`[CuratedRSSProvider] Failed to fetch feed ${feedConfig.url}:`, (err as Error).message);
+      return [];
+    }
+  }
+
+  /**
+   * Fetch headlines from live RSS sources with strict category isolation
+   */
   async fetchHeadlines(options: NewsFetchOptions = {}): Promise<Article[]> {
     const category = options.category;
-    let articles = CuratedRSSProvider.getArticles();
+    let targetFeeds: CategoryFeedConfig[] = [];
 
     if (category && category.toLowerCase() !== 'all' && category.toLowerCase() !== 'general') {
-      const lowerCat = category.toLowerCase();
-      const filtered = articles.filter(
-        (a) =>
-          a.category.toLowerCase().includes(lowerCat) ||
-          lowerCat.includes(a.category.toLowerCase()) ||
-          a.title.toLowerCase().includes(lowerCat) ||
-          a.description.toLowerCase().includes(lowerCat)
+      const matchedCategoryKey = Object.keys(RSS_FEEDS_BY_CATEGORY).find(
+        (key) => key.toLowerCase() === category.toLowerCase()
       );
-      if (filtered.length > 0) {
-        articles = filtered;
+
+      if (matchedCategoryKey) {
+        targetFeeds = RSS_FEEDS_BY_CATEGORY[matchedCategoryKey];
+      } else {
+        // Find feeds where category matches partially
+        targetFeeds = Object.values(RSS_FEEDS_BY_CATEGORY)
+          .flat()
+          .filter((f) => f.category.toLowerCase().includes(category.toLowerCase()));
       }
+    } else {
+      // Pick top 2 feeds from every category for a rich general headline feed
+      targetFeeds = Object.values(RSS_FEEDS_BY_CATEGORY).flatMap((feeds) => feeds.slice(0, 2));
     }
 
-    return articles;
+    // Fetch all targeted feeds in parallel
+    const feedResults = await Promise.all(targetFeeds.map((feed) => this.fetchSingleFeed(feed)));
+    const fetchedArticles = feedResults.flat();
+
+    // Return live articles only. If every network request failed we return an empty
+    // array rather than fabricating offline placeholder news.
+    if (fetchedArticles.length > 0) {
+      return fetchedArticles;
+    }
+
+    return [];
   }
 
+  /**
+   * Search across live RSS feeds or return query matches
+   */
   async searchNews(query: string, options: NewsFetchOptions = {}): Promise<Article[]> {
     const q = query.toLowerCase().trim();
-    const articles = CuratedRSSProvider.getArticles();
-    if (!q) return articles;
+    if (!q) return this.fetchHeadlines(options);
+
+    // Fetch broad set of feeds to search through
+    const allFeeds = Object.values(RSS_FEEDS_BY_CATEGORY).flatMap((feeds) => feeds.slice(0, 2));
+    const feedResults = await Promise.all(allFeeds.map((f) => this.fetchSingleFeed(f)));
+    const articles = feedResults.flat();
 
     const filtered = articles.filter(
       (a) =>
@@ -252,29 +248,7 @@ export class CuratedRSSProvider implements NewsProvider {
         a.source.name.toLowerCase().includes(q)
     );
 
-    if (filtered.length > 0) return filtered;
-
-    const dynamicUrl = `https://news.google.com/search?q=${encodeURIComponent(query)}`;
-    const canonical = normalizeUrl(dynamicUrl);
-
-    return [
-      {
-        id: generateDeterministicArticleId(canonical, query),
-        title: `Latest Developments and Insights on "${query.toUpperCase()}"`,
-        description: `Comprehensive analysis, market trends, and executive updates regarding ${query} across global technology and economic sectors.`,
-        content: `Industry leaders and domain experts continue to evaluate the evolving impact of ${query}. Key observations indicate rapid adaptation, emerging standards, and strategic investments driving market dynamics.`,
-        url: dynamicUrl,
-        canonicalUrl: canonical,
-        urlToImage: 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',
-        publishedAt: new Date().toISOString(),
-        source: { name: 'Global Tech & News Desk', type: 'ESTABLISHED', credibilityScore: 90 },
-        category: 'Search Result',
-        author: 'PulseAI Intelligence',
-        readTimeMinutes: 4,
-        trendingScore: 85,
-        region: 'Global',
-      },
-      ...articles.slice(0, 3),
-    ];
+    // Return only genuine live matches. Do NOT fabricate a placeholder search result.
+    return filtered;
   }
 }

@@ -7,8 +7,17 @@ import { geminiService } from '../services/geminiService.js';
 import { guestService } from '../services/guestService.js';
 import { misinformationService } from '../services/misinformationService.js';
 import { ragService } from '../services/ragService.js';
+import { elapsedMs, logPerf } from '../utils/perf.js';
 
 const router = Router();
+
+function timeRoute(label: string, fn: () => Promise<any>) {
+  const t0 = Date.now();
+  return fn().then((result) => {
+    logPerf(`Route ${label}`, elapsedMs(t0));
+    return result;
+  });
+}
 
 // Guest Usage Status Endpoint
 router.get('/guest/status', optionalAuthMiddleware, (req: AuthenticatedRequest, res) => {
@@ -64,7 +73,9 @@ router.get('/feed', optionalAuthMiddleware, async (req: AuthenticatedRequest, re
       }
     }
 
-    const data = await newsService.getPersonalizedFeed(userInterests, userId, scope);
+    const data = await timeRoute(`GET /news/feed`, () =>
+      newsService.getPersonalizedFeed(userInterests, userId, scope)
+    );
     res.json(data);
   } catch (err) {
     next(err);
@@ -76,7 +87,9 @@ router.get('/category/:category', async (req, res, next) => {
   try {
     const { category } = req.params;
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
-    const data = await newsService.getNewsByCategory(category, scope);
+    const data = await timeRoute(`GET /news/category/${category}`, () =>
+      newsService.getNewsByCategory(category, scope)
+    );
     res.json(data);
   } catch (err) {
     next(err);
@@ -88,7 +101,7 @@ router.get('/search', optionalAuthMiddleware, enforceGuestLimit('search'), async
   try {
     const query = (req.query.q as string) || '';
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
-    const data = await newsService.searchNews(query, scope);
+    const data = await timeRoute('GET /news/search', () => newsService.searchNews(query, scope));
     res.json(data);
   } catch (err) {
     next(err);
@@ -99,7 +112,7 @@ router.get('/search', optionalAuthMiddleware, enforceGuestLimit('search'), async
 router.get('/trending', async (req, res, next) => {
   try {
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
-    const data = await newsService.getTrendingNews(scope);
+    const data = await timeRoute('GET /news/trending', () => newsService.getTrendingNews(scope));
     res.json(data);
   } catch (err) {
     next(err);
@@ -110,7 +123,7 @@ router.get('/trending', async (req, res, next) => {
 router.get('/clusters', async (req, res, next) => {
   try {
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
-    const clusterData = await newsService.getStoryClusters(scope);
+    const clusterData = await timeRoute('GET /news/clusters', () => newsService.getStoryClusters(scope));
     res.json(clusterData);
   } catch (err) {
     next(err);
@@ -160,19 +173,34 @@ router.post('/compare-coverage', async (req, res, next) => {
 });
 
 // Translate Article
-router.post('/translate', optionalAuthMiddleware, enforceGuestLimit('ai'), async (req, res, next) => {
+// Cache-first: guests are only charged an AI credit when an actual (non-cached) translation is generated.
+router.post('/translate', optionalAuthMiddleware, async (req: AuthenticatedRequest, res, next) => {
   try {
-    const { title, description, content, targetLanguage } = req.body;
+    const { title, targetLanguage } = req.body;
     if (!title || !targetLanguage) {
       return res.status(400).json({ error: 'Title and targetLanguage are required' });
     }
-    const result = await geminiService.translateArticle(
-      title,
-      description || '',
-      content || '',
-      targetLanguage
-    );
-    res.json(result);
+
+    const cached = await geminiService.getCachedTranslation(req.body);
+    if (cached) {
+      return res.json(cached);
+    }
+
+    if (!req.user) {
+      const guestId = (req.headers['x-guest-id'] as string) || req.ip || 'anonymous_guest';
+      const result = guestService.checkAndIncrementAi(guestId);
+      if (!result.allowed) {
+        return res.status(403).json({
+          error: `Guest AI limit (${result.limit}/day) reached. Please sign in or create a free account for unlimited AI summaries and translations.`,
+          code: 'GUEST_LIMIT_REACHED',
+          limitType: 'ai',
+          limit: result.limit,
+        });
+      }
+    }
+
+    const translated = await geminiService.translateArticle(req.body);
+    res.json(translated);
   } catch (err) {
     next(err);
   }

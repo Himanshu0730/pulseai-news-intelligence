@@ -32,7 +32,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
 
   const logInteraction = (topic?: string) => {
     if (topic) {
-      api.post('/user/interaction', { topic }).catch(() => {});
+      api.post('/news/interaction', { topic }).catch(() => {});
     }
   };
 
@@ -80,7 +80,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
           {/* Image Canvas */}
           <div
             onClick={handleCardClick}
-            className="lg:col-span-7 relative h-56 sm:h-64 lg:h-full lg:min-h-[340px] overflow-hidden cursor-pointer bg-slate-950"
+            className="lg:col-span-6 relative h-64 sm:h-80 lg:h-auto overflow-hidden cursor-pointer bg-slate-950"
           >
             <img
               src={imageSrc}
@@ -108,10 +108,10 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
           </div>
 
           {/* Editorial Headline & Brief Column */}
-          <div className="lg:col-span-5 p-5 sm:p-6 flex flex-col justify-between space-y-4">
+          <div className="lg:col-span-6 p-6 sm:p-8 flex flex-col justify-between space-y-6">
             <div>
               {/* Publisher & Metadata */}
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2 font-ui">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-3 font-ui">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-800 dark:text-slate-200">
                     {article.source?.name || 'Publisher'}
@@ -133,18 +133,18 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
               {/* Title */}
               <h2
                 onClick={handleCardClick}
-                className="text-xl sm:text-2xl font-editorial font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors leading-tight line-clamp-3 cursor-pointer mb-2"
+                className="text-2xl sm:text-3xl font-editorial font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors leading-tight cursor-pointer mb-4"
               >
                 {article.title}
               </h2>
 
               {/* Description */}
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-ui line-clamp-2 mb-3">
+              <p className="text-slate-600 dark:text-slate-300 text-sm sm:text-base leading-relaxed font-ui line-clamp-3 mb-4">
                 {article.description}
               </p>
 
               {/* Inline AI Quick Teaser */}
-              <div className="p-3 rounded-xl bg-sky-50/80 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/60 font-ui text-xs text-sky-950 dark:text-sky-200 space-y-1">
+              <div className="p-3.5 rounded-xl bg-sky-50/80 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900/60 font-ui text-xs text-sky-950 dark:text-sky-200 space-y-1">
                 <div className="flex items-center justify-between font-bold text-[11px] text-sky-700 dark:text-sky-400 uppercase tracking-wider">
                   <span className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5" />
@@ -159,7 +159,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
                   </button>
                 </div>
                 {showInlineSummary ? (
-                  <p className="pt-1 text-slate-700 dark:text-slate-300 leading-relaxed text-xs animate-fade-in line-clamp-6">
+                  <p className="pt-1 text-slate-700 dark:text-slate-300 leading-relaxed text-xs animate-fade-in">
                     {article.content || article.description}
                   </p>
                 ) : (
@@ -171,10 +171,10 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
             </div>
 
             {/* Footer CTA Actions */}
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 font-ui">
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 font-ui">
               <button
                 onClick={handleCardClick}
-                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
               >
                 <span>Read Full Story</span>
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -186,7 +186,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
                     e.stopPropagation();
                     onRequestSummary(article);
                   }}
-                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
+                  className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold transition-colors cursor-pointer flex items-center gap-1.5"
                   title="Generate Full AI Briefing"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
@@ -282,7 +282,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
         {/* Thumbnail Image */}
         <div
           onClick={handleCardClick}
-          className="relative w-full h-44 sm:h-48 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-950 mb-3 cursor-pointer"
+          className="relative w-full h-44 sm:h-48 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-950 mb-3 cursor-pointer shrink-0"
         >
           <img
             src={imageSrc}

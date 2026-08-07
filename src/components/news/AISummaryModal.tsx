@@ -12,11 +12,13 @@ interface AISummaryModalProps {
 }
 
 export const AISummaryModal: React.FC<AISummaryModalProps> = ({ article, summary, isLoading, onClose }) => {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<'tldr' | 'points' | 'analysis'>('tldr');
   const [copied, setCopied] = useState(false);
 
   if (!article) return null;
+
+  const isRtl = language === 'ur';
 
   const handleCopy = () => {
     if (!summary) return;
@@ -28,7 +30,12 @@ export const AISummaryModal: React.FC<AISummaryModalProps> = ({ article, summary
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in font-ui">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] text-slate-900 dark:text-slate-100">
+      <div
+        dir={isRtl ? 'rtl' : 'ltr'}
+        className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] text-slate-900 dark:text-slate-100 ${
+          isRtl ? 'text-right' : ''
+        }`}
+      >
         {/* Modal Header */}
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950/80">
           <div className="flex items-center gap-3">

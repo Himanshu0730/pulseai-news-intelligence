@@ -53,27 +53,48 @@ export function generateDeterministicArticleId(url: string, title?: string): str
  * Computes Jaccard similarity score between two text strings (0.0 to 1.0)
  */
 export function calculateTextSimilarity(text1: string, text2: string): number {
+  const tokens1 = tokenizeForSimilarity(text1);
+  const tokens2 = tokenizeForSimilarity(text2);
+  return jaccardSimilarity(tokens1, tokens2);
+}
+
+/**
+ * Lower-cases, strips punctuation and stop words, then tokenizes text into a Set.
+ * Exported so the O(n^2) deduplication pipeline can tokenize each title once and
+ * reuse the token sets across all pair comparisons instead of re-tokenizing per pair.
+ */
+export function tokenizeForSimilarity(text: string): Set<string> {
   const stopWords = new Set([
     'the', 'a', 'an', 'and', 'or', 'in', 'of', 'to', 'for', 'with', 'on', 'at',
     'from', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'this', 'that', 'it', 'has', 'have'
   ]);
 
-  const tokenize = (str: string) =>
-    new Set(
-      str
-        .toLowerCase()
-        .replace(/[^\w\s]/g, '')
-        .split(/\s+/)
-        .filter((w) => w.length > 2 && !stopWords.has(w))
-    );
+  return new Set(
+    String(text || '')
+      .toLowerCase()
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !stopWords.has(w))
+  );
+}
 
-  const tokens1 = tokenize(text1);
-  const tokens2 = tokenize(text2);
+/**
+ * Jaccard similarity between two token sets with a cheap upper-bound short-circuit:
+ * Jaccard <= min(|A|,|B|) / max(|A|,|B|), so pairs whose sizes differ enough can never
+ * reach the 0.75 duplicate threshold and are skipped without any intersection scan.
+ */
+export function jaccardSimilarity(tokens1: Set<string>, tokens2: Set<string>): number {
+  const min = tokens1.size < tokens2.size ? tokens1 : tokens2;
+  const max = tokens1.size < tokens2.size ? tokens2 : tokens1;
 
-  if (tokens1.size === 0 || tokens2.size === 0) return 0;
+  if (max.size === 0 || min.size / max.size < 0.75) return 0;
 
-  const intersection = new Set([...tokens1].filter((x) => tokens2.has(x)));
-  const union = new Set([...tokens1, ...tokens2]);
+  let intersection = 0;
+  for (const tok of min) {
+    if (max.has(tok)) intersection++;
+  }
+  if (intersection === 0) return 0;
 
-  return intersection.size / union.size;
+  const union = tokens1.size + tokens2.size - intersection;
+  return union === 0 ? 0 : intersection / union;
 }

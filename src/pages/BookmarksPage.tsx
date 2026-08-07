@@ -96,7 +96,7 @@ export const BookmarksPage: React.FC = () => {
         {/* Content */}
         <div className="mt-8">
           {isLoading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
               <ArticleCardSkeleton />
               <ArticleCardSkeleton />
               <ArticleCardSkeleton />
@@ -110,7 +110,7 @@ export const BookmarksPage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
               {filtered.map((b) => {
                 const article = bookmarkToArticle(b);
                 return (

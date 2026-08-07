@@ -1,6 +1,28 @@
 import { generateDeterministicArticleId, normalizeUrl } from '../utils/urlNormalizer.js';
 import { Article, NewsFetchOptions, NewsProvider } from './types.js';
 
+// Map PulseAI's app categories to GNews-supported categories so category queries
+// never fail with an unsupported category value.
+const GNEWS_CATEGORY_MAP: Record<string, string> = {
+  'ai & ml': 'technology',
+  'world news': 'world',
+  'climate & energy': 'science',
+  technology: 'technology',
+  science: 'science',
+  health: 'health',
+  business: 'business',
+  entertainment: 'entertainment',
+  sports: 'sports',
+};
+
+function resolveGNewsCategory(category?: string): string {
+  if (!category || category.toLowerCase() === 'all' || category.toLowerCase() === 'general') {
+    return 'general';
+  }
+  const lower = category.toLowerCase();
+  return GNEWS_CATEGORY_MAP[lower] || lower;
+}
+
 export class GNewsProvider implements NewsProvider {
   name = 'GNews';
   private apiKey: string;
@@ -26,7 +48,7 @@ export class GNewsProvider implements NewsProvider {
     }
     this.checkCooldown();
 
-    const category = options.category && options.category.toLowerCase() !== 'all' ? options.category.toLowerCase() : 'general';
+    const category = resolveGNewsCategory(options.category);
     const limit = options.limit || 15;
     const country = options.country || 'in';
     const url = `https://gnews.io/api/v4/top-headlines?category=${category}&lang=en&country=${country}&max=${limit}&apikey=${this.apiKey}`;
@@ -36,6 +58,9 @@ export class GNewsProvider implements NewsProvider {
       const errText = await response.text();
       if (response.status === 429 || response.status === 403) {
         this.rateLimitUntil = Date.now() + 15 * 60 * 1000; // 15 min cooldown
+      } else if (response.status === 401) {
+        console.warn(`[GNews] Invalid API key (401) — pausing provider for 60 minutes`);
+        this.rateLimitUntil = Date.now() + 60 * 60 * 1000;
       }
       throw new Error(`GNews error [${response.status}]: ${errText}`);
     }
@@ -62,6 +87,9 @@ export class GNewsProvider implements NewsProvider {
       const errText = await response.text();
       if (response.status === 429 || response.status === 403) {
         this.rateLimitUntil = Date.now() + 15 * 60 * 1000; // 15 min cooldown
+      } else if (response.status === 401) {
+        console.warn(`[GNews] Invalid API key (401) — pausing provider for 60 minutes`);
+        this.rateLimitUntil = Date.now() + 60 * 60 * 1000;
       }
       throw new Error(`GNews Search error [${response.status}]: ${errText}`);
     }

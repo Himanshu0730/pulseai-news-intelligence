@@ -1,6 +1,28 @@
 import { generateDeterministicArticleId, normalizeUrl } from '../utils/urlNormalizer.js';
 import { Article, NewsFetchOptions, NewsProvider } from './types.js';
 
+// Map PulseAI's app categories to NewsAPI-supported categories so category queries
+// never fail with an unsupported category value.
+const NEWSAPI_CATEGORY_MAP: Record<string, string> = {
+  'ai & ml': 'technology',
+  'world news': 'general',
+  'climate & energy': 'science',
+  technology: 'technology',
+  science: 'science',
+  health: 'health',
+  business: 'business',
+  entertainment: 'entertainment',
+  sports: 'sports',
+};
+
+function resolveNewsApiCategory(category?: string): string {
+  if (!category || category.toLowerCase() === 'all' || category.toLowerCase() === 'general') {
+    return 'general';
+  }
+  const lower = category.toLowerCase();
+  return NEWSAPI_CATEGORY_MAP[lower] || lower;
+}
+
 export class NewsAPIProvider implements NewsProvider {
   name = 'NewsAPI';
   private apiKey: string;
@@ -26,7 +48,7 @@ export class NewsAPIProvider implements NewsProvider {
     }
     this.checkCooldown();
 
-    const category = options.category && options.category.toLowerCase() !== 'all' ? options.category.toLowerCase() : 'general';
+    const category = resolveNewsApiCategory(options.category);
     const country = options.country || 'in';
     const pageSize = options.limit || 20;
 
@@ -37,6 +59,10 @@ export class NewsAPIProvider implements NewsProvider {
       const errText = await response.text();
       if (response.status === 429 || response.status === 403) {
         this.rateLimitUntil = Date.now() + 15 * 60 * 1000; // 15 min cooldown
+      } else if (response.status === 401) {
+        // Invalid/expired API key: back off so we stop hammering an unusable key.
+        console.warn(`[NewsAPI] Invalid API key (401) — pausing provider for 60 minutes`);
+        this.rateLimitUntil = Date.now() + 60 * 60 * 1000;
       }
       throw new Error(`NewsAPI error [${response.status}]: ${errText}`);
     }
@@ -63,6 +89,9 @@ export class NewsAPIProvider implements NewsProvider {
       const errText = await response.text();
       if (response.status === 429 || response.status === 403) {
         this.rateLimitUntil = Date.now() + 15 * 60 * 1000; // 15 min cooldown
+      } else if (response.status === 401) {
+        console.warn(`[NewsAPI] Invalid API key (401) — pausing provider for 60 minutes`);
+        this.rateLimitUntil = Date.now() + 60 * 60 * 1000;
       }
       throw new Error(`NewsAPI Search error [${response.status}]: ${errText}`);
     }
@@ -81,14 +110,16 @@ export class NewsAPIProvider implements NewsProvider {
       .map((a) => {
         const canonical = normalizeUrl(a.url);
         const articleId = generateDeterministicArticleId(canonical, a.title);
-        const textLen = (a.content || a.description || '').length;
+        // NewsAPI appends a truncation marker like " [+1234 chars]"; strip it.
+        const rawContent = (a.content || '').replace(/\s*\[\+\d+\s?chars\]\s*$/i, '').trim();
+        const textLen = (rawContent || a.description || '').length;
         const readTime = Math.max(2, Math.round(textLen / 300) || 3);
 
         return {
           id: articleId,
           title: a.title,
           description: a.description || 'No description provided for this story.',
-          content: a.content || a.description || 'Full article content available at source.',
+          content: rawContent || a.description || 'Full article content available at source.',
           url: a.url,
           canonicalUrl: canonical,
           urlToImage: a.urlToImage || 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=80',

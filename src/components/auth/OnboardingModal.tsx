@@ -50,7 +50,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
     try {
       localStorage.setItem('has_configured_preferences', 'true');
       if (token) {
-        await api.put('/user/interests', { interests: selected });
+        await api.put('/users/interests', { interests: selected });
       } else {
         localStorage.setItem('guest_interests', JSON.stringify(selected));
       }
@@ -60,7 +60,8 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
       console.error('Error saving onboarding interests', err);
       localStorage.setItem('has_configured_preferences', 'true');
       setIsSaving(false);
-      // Proceed gracefully
+      // Proceed gracefully so a server hiccup does not block onboarding,
+      // but keep the failure visible in logs (endpoint 404s are NOT swallowed).
       onComplete();
     }
   };

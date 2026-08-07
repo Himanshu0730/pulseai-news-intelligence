@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { AuthenticatedRequest, authMiddleware } from '../middleware/authMiddleware.js';
 import { authService } from '../services/authService.js';
+import { elapsedMs, logPerf } from '../utils/perf.js';
 
 const router = Router();
 
@@ -28,7 +29,9 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: 'Please enter both email and password' });
     }
 
+    const t0 = Date.now();
     const result = await authService.login(email, password);
+    logPerf('POST /auth/login', elapsedMs(t0));
     res.json(result);
   } catch (err) {
     next(err);
@@ -40,7 +43,9 @@ router.get('/me', authMiddleware, async (req: AuthenticatedRequest, res, next) =
     if (!req.user) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
+    const t0 = Date.now();
     const user = await authService.getCurrentUser(req.user.userId);
+    logPerf('GET /auth/me', elapsedMs(t0));
     res.json({ user });
   } catch (err) {
     next(err);

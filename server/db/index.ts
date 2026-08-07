@@ -82,6 +82,25 @@ function saveStore() {
   }
 }
 
+// Debounce file persistence: the store can grow to a few MB (news cache entries
+// carry full article bodies), so a synchronous JSON.stringify + writeFileSync on
+// every mutation would block the event loop. We coalesce writes to at most one
+// per tick; the in-memory `store` is always the source of truth for reads.
+let saveTimer: NodeJS.Timeout | null = null;
+function scheduleSave() {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    saveStore();
+  }, 400);
+}
+process.once('exit', () => {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveStore();
+  }
+});
+
 declare global {
   var __pulse_pg_pool: pg.Pool | null | undefined;
   var __pulse_db_initialized: boolean | undefined;
@@ -135,11 +154,15 @@ async function initDatabase() {
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email));
+
       CREATE TABLE IF NOT EXISTS user_interests (
         user_id VARCHAR(255) NOT NULL,
         category VARCHAR(255) NOT NULL,
         PRIMARY KEY (user_id, category)
       );
+
+      CREATE INDEX IF NOT EXISTS idx_user_interests_user ON user_interests(user_id);
 
       CREATE TABLE IF NOT EXISTS bookmarks (
         id VARCHAR(255) PRIMARY KEY,
@@ -155,6 +178,8 @@ async function initDatabase() {
         category TEXT,
         saved_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
+
+      CREATE INDEX IF NOT EXISTS idx_bookmarks_user ON bookmarks(user_id);
 
       CREATE TABLE IF NOT EXISTS summaries (
         article_id VARCHAR(255) PRIMARY KEY,
@@ -244,10 +269,14 @@ export const db = {
         const query = `
           INSERT INTO users (id, email, name, password_hash, avatar_url)
           VALUES ($1, $2, $3, $4, $5)
-          ON CONFLICT (email) DO UPDATE SET name = EXCLUDED.name, avatar_url = EXCLUDED.avatar_url
+          ON CONFLICT (email) DO UPDATE SET 
+            name = EXCLUDED.name, 
+            password_hash = EXCLUDED.password_hash,
+            avatar_url = COALESCE(EXCLUDED.avatar_url, users.avatar_url),
+            updated_at = CURRENT_TIMESTAMP
           RETURNING id, email, name, password_hash, avatar_url, created_at, updated_at
         `;
-        const res = await pool.query(query, [newUser.id, newUser.email, newUser.name, newUser.password_hash, newUser.avatar_url]);
+        const res = await pool.query(query, [newUser.id, newUser.email.toLowerCase().trim(), newUser.name, newUser.password_hash, newUser.avatar_url]);
         if (res.rows[0]) return res.rows[0];
       } catch (err) {
         handlePgError(err, 'createUser');
@@ -258,7 +287,7 @@ export const db = {
     store.users[newUser.id] = newUser;
     // Default initial interests
     store.user_interests[newUser.id] = ['Technology', 'AI & ML', 'Business'];
-    saveStore();
+    scheduleSave();
     return newUser;
   },
 
@@ -281,7 +310,7 @@ export const db = {
   async getUserById(id: string): Promise<User | null> {
     if (pool) {
       try {
-        const res = await pool.query('SELECT * FROM users WHERE id::text = $1', [id]);
+        const res = await pool.query('SELECT * FROM users WHERE id::text = $1 OR LOWER(email) = LOWER($1)', [id]);
         if (res.rows.length > 0) return res.rows[0];
       } catch (err) {
         handlePgError(err, 'getUserById');
@@ -289,7 +318,7 @@ export const db = {
     }
 
     checkProductionDbRequirement();
-    return store.users[id] || null;
+    return store.users[id] || Object.values(store.users).find((u) => u.email.toLowerCase() === id.toLowerCase()) || null;
   },
 
   // --- INTERESTS ---
@@ -325,7 +354,7 @@ export const db = {
 
     checkProductionDbRequirement();
     store.user_interests[userId] = unique;
-    saveStore();
+    scheduleSave();
     return unique;
   },
 
@@ -387,7 +416,7 @@ export const db = {
     // Key by user_id:article_id to replace duplicates
     const key = `${bookmark.user_id}:${bookmark.article_id}`;
     store.bookmarks[key] = fullBookmark;
-    saveStore();
+    scheduleSave();
     return fullBookmark;
   },
 
@@ -405,7 +434,7 @@ export const db = {
     const key = `${userId}:${articleId}`;
     if (store.bookmarks[key]) {
       delete store.bookmarks[key];
-      saveStore();
+      scheduleSave();
       return true;
     }
     // Search by matching user_id & article_id or bookmark id
@@ -414,7 +443,7 @@ export const db = {
     );
     if (foundEntry) {
       delete store.bookmarks[foundEntry[0]];
-      saveStore();
+      scheduleSave();
       return true;
     }
     return false;
@@ -475,7 +504,7 @@ export const db = {
 
     checkProductionDbRequirement();
     store.summaries[summary.article_id] = fullSummary;
-    saveStore();
+    scheduleSave();
     return fullSummary;
   },
 
@@ -485,7 +514,22 @@ export const db = {
     if (cached && cached.expires_at > Date.now()) {
       return cached.data;
     }
+    if (cached) {
+      // Lazily drop expired entries so the file-backed store does not grow unbounded.
+      delete store.news_cache[cacheKey];
+    }
     return null;
+  },
+
+  /**
+   * Returns the raw cache entry (including expiry) without deleting or validating it.
+   * Used by the stale-while-revalidate path so expired-but-usable entries can be
+   * served immediately while a background refresh repopulates the cache.
+   */
+  peekCachedNews(cacheKey: string): { data: any; expires_at: number } | null {
+    const cached = store.news_cache[cacheKey];
+    if (!cached) return null;
+    return { data: cached.data, expires_at: cached.expires_at };
   },
 
   async setCachedNews(cacheKey: string, data: any, ttlSeconds: number = 600): Promise<void> {
@@ -493,7 +537,15 @@ export const db = {
       data,
       expires_at: Date.now() + ttlSeconds * 1000,
     };
-    saveStore();
+    // Purge only entries expired well beyond their TTL (30 min) so expired entries
+    // that the stale-while-revalidate window still wants to serve are not destroyed.
+    const purgeBefore = Date.now() - 30 * 60 * 1000;
+    for (const key of Object.keys(store.news_cache)) {
+      if (store.news_cache[key].expires_at < purgeBefore) {
+        delete store.news_cache[key];
+      }
+    }
+    scheduleSave();
   },
 
   // --- USER INTERACTIONS & TOPICS ---
@@ -507,7 +559,7 @@ export const db = {
       store.user_interactions[userId] = {};
     }
     store.user_interactions[userId][cleanTopic] = (store.user_interactions[userId][cleanTopic] || 0) + 1;
-    saveStore();
+    scheduleSave();
   },
 
   async getUserInteractionTopics(userId: string): Promise<Record<string, number>> {

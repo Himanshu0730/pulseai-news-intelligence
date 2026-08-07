@@ -64,6 +64,7 @@ export interface Article {
   factCheckStatus?: FactCheckStatus;
   disputedInfo?: DisputedInfo;
   misinformationRisk?: MisinformationAssessment;
+  supportingSources?: Array<{ name: string; url: string }>;
 }
 
 export interface StoryCluster {

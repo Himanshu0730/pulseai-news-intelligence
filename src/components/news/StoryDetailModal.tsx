@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   X,
   Sparkles,
@@ -16,41 +16,161 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from 'lucide-react';
 import { StoryCluster, Article } from '../../types';
-import { api } from '../../api/client';
+import { api, ApiError } from '../../api/client';
 import { useLanguage } from '../../context/LanguageContext';
+import { useAuth } from '../../context/AuthContext';
 
 interface StoryDetailModalProps {
   cluster: StoryCluster | null;
   onClose: () => void;
 }
 
+interface TranslatedBriefing {
+  whatHappened?: string;
+  whyItMatters?: string;
+  confirmedFacts?: string[];
+  uncertainties?: string[];
+}
+
+const briefingTranslationCache = new Map<string, { briefing: TranslatedBriefing; title?: string }>();
+
 export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onClose }) => {
-  const { t } = useLanguage();
+  const { language, t } = useLanguage();
+  const { openAuthModal } = useAuth();
   const [activeTab, setActiveTab] = useState<'briefing' | 'sources' | 'timeline' | 'evidence'>('briefing');
   const [isGeneratingBriefing, setIsGeneratingBriefing] = useState(false);
   const [dynamicBriefing, setDynamicBriefing] = useState<any | null>(cluster?.summaryBriefing || null);
+  const [translatedBriefing, setTranslatedBriefing] = useState<TranslatedBriefing | null>(null);
+  const [translatedClusterTitle, setTranslatedClusterTitle] = useState<string | null>(null);
+  const [isTranslatingBriefing, setIsTranslatingBriefing] = useState(false);
+  const [briefingTranslationError, setBriefingTranslationError] = useState<string | null>(null);
+  const [isBriefingBlocked, setIsBriefingBlocked] = useState(false);
+  const [briefingGenError, setBriefingGenError] = useState<string | null>(null);
+  const briefingGenRef = useRef(0);
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Close on Escape and lock background scroll while the drawer is open
+  useEffect(() => {
+    if (!cluster) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCloseRef.current();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [cluster]);
+
+  const rep = cluster?.representativeArticle;
+  const articles = cluster && cluster.articles && cluster.articles.length > 0 ? cluster.articles : rep ? [rep] : [];
+  const briefing = dynamicBriefing || cluster?.summaryBriefing || null;
+
+  // Translate the story briefing (and cluster title) when target language is not English
+  useEffect(() => {
+    if (!cluster || !briefing) return;
+
+    if (language === 'en') {
+      setTranslatedBriefing(null);
+      setTranslatedClusterTitle(null);
+      setBriefingTranslationError(null);
+      setIsBriefingBlocked(false);
+      return;
+    }
+
+    if (!briefing.whatHappened && !briefing.whyItMatters) return;
+
+    const cacheKey = `${cluster.clusterId}_${language}`;
+    const cached = briefingTranslationCache.get(cacheKey);
+    if (cached) {
+      setTranslatedBriefing(cached.briefing);
+      setTranslatedClusterTitle(cached.title || null);
+      return;
+    }
+
+    let isMounted = true;
+    const gen = ++briefingGenRef.current;
+    const run = async () => {
+      setIsTranslatingBriefing(true);
+      setBriefingTranslationError(null);
+      setIsBriefingBlocked(false);
+      try {
+        const res = await api.post<any>('/news/translate', {
+          articleId: cluster.clusterId,
+          title: cluster.clusterTitle || rep?.title || 'Story',
+          description: rep?.description || '',
+          content: rep?.content || rep?.description || '',
+          storyBriefing: {
+            whatHappened: briefing.whatHappened,
+            whyItMatters: briefing.whyItMatters,
+            confirmedFacts: briefing.confirmedFacts,
+            uncertainties: briefing.uncertainties,
+          },
+          targetLanguage: language,
+        });
+        if (gen !== briefingGenRef.current || !isMounted) return;
+        const translated: TranslatedBriefing = res.translatedStoryBriefing || res;
+        briefingTranslationCache.set(cacheKey, { briefing: translated, title: res.translatedTitle });
+        setTranslatedBriefing(translated);
+        setTranslatedClusterTitle(res.translatedTitle || null);
+      } catch (err) {
+        if (gen !== briefingGenRef.current || !isMounted) return;
+        console.error('Failed to translate story briefing:', err);
+        if (err instanceof ApiError && err.code === 'GUEST_LIMIT_REACHED') {
+          setIsBriefingBlocked(true);
+          setBriefingTranslationError(err.message);
+        } else if (err instanceof ApiError) {
+          setBriefingTranslationError(err.message || 'Story briefing translation unavailable. Showing original.');
+        } else {
+          setBriefingTranslationError('Network error while translating story briefing. Showing original.');
+        }
+      } finally {
+        if (gen === briefingGenRef.current && isMounted) {
+          setIsTranslatingBriefing(false);
+        }
+      }
+    };
+
+    run();
+
+    return () => {
+      isMounted = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cluster, language, dynamicBriefing]);
 
   if (!cluster) return null;
 
-  const rep = cluster.representativeArticle;
-  const articles = cluster.articles && cluster.articles.length > 0 ? cluster.articles : [rep];
-  const misinfo = cluster.misinformationRisk || rep.misinformationRisk;
+  const isRtl = language === 'ur';
+
+  const misinfo = cluster.misinformationRisk || rep?.misinformationRisk;
+  const displayBriefing = translatedBriefing || briefing;
 
   const handleGenerateBriefing = async () => {
     setIsGeneratingBriefing(true);
+    setBriefingGenError(null);
     try {
       const res = await api.post<any>('/news/rag/briefing', { cluster });
       setDynamicBriefing(res.briefing || res);
     } catch (err) {
       console.error('Error generating grounded story briefing:', err);
+      if (err instanceof ApiError) {
+        setBriefingGenError(err.message || 'Briefing generation failed. Please try again.');
+      } else {
+        setBriefingGenError('Network error while generating the briefing. Please try again.');
+      }
     } finally {
       setIsGeneratingBriefing(false);
     }
   };
-
-  const briefing = dynamicBriefing || cluster.summaryBriefing;
 
   const formatTimeAgo = (dateStr: string) => {
     try {
@@ -68,10 +188,20 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-md animate-fade-in flex justify-end">
+    <div
+      className="fixed inset-0 z-50 overflow-hidden bg-slate-950/70 backdrop-blur-md animate-fade-in flex justify-end"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onCloseRef.current();
+      }}
+    >
       
       {/* Drawer Container */}
-      <div className="bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 w-full max-w-5xl h-full shadow-2xl flex flex-col text-slate-900 dark:text-slate-100 transition-all duration-300">
+      <div
+        dir={isRtl ? 'rtl' : 'ltr'}
+        className={`bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 w-full max-w-5xl h-full shadow-2xl flex flex-col text-slate-900 dark:text-slate-100 transition-all duration-300 ${
+          isRtl ? 'text-right' : ''
+        }`}
+      >
         
         {/* Header Bar */}
         <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-20 font-ui">
@@ -89,7 +219,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                 </span>
               </div>
               <h2 className="text-base sm:text-lg font-editorial font-bold text-slate-900 dark:text-slate-100 truncate">
-                {cluster.clusterTitle || rep.title}
+                {translatedClusterTitle || cluster.clusterTitle || rep?.title}
               </h2>
             </div>
           </div>
@@ -152,6 +282,41 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
             <span>RAG Evidence Inspector</span>
           </button>
         </div>
+
+        {/* Translation Status Banners */}
+        {isTranslatingBriefing && (
+          <div className="px-6 py-2 bg-sky-50 dark:bg-sky-950/60 border-b border-sky-200 dark:border-sky-800 flex items-center gap-2 text-xs text-sky-700 dark:text-sky-300 font-medium">
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-sky-600 dark:text-sky-400 shrink-0" />
+            <span>Translating story briefing into {language}...</span>
+          </div>
+        )}
+
+        {isBriefingBlocked && (
+          <div className="px-6 py-2 bg-rose-50 dark:bg-rose-950/60 border-b border-rose-200 dark:border-rose-800 flex items-center gap-2 text-xs text-rose-800 dark:text-rose-300 font-medium">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+            <span className="flex-1">{briefingTranslationError}</span>
+            <button
+              onClick={() => openAuthModal('register')}
+              className="px-2.5 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold whitespace-nowrap cursor-pointer"
+            >
+              Sign In
+            </button>
+          </div>
+        )}
+
+        {briefingTranslationError && !isBriefingBlocked && (
+          <div className="px-6 py-2 bg-amber-50 dark:bg-amber-950/60 border-b border-amber-200 dark:border-amber-800 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300 font-medium">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <span>{briefingTranslationError}</span>
+          </div>
+        )}
+
+        {briefingGenError && (
+          <div className="px-6 py-2 bg-rose-50 dark:bg-rose-950/60 border-b border-rose-200 dark:border-rose-800 flex items-center gap-2 text-xs text-rose-800 dark:text-rose-300 font-medium">
+            <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+            <span className="flex-1">{briefingGenError}</span>
+          </div>
+        )}
 
         {/* Scrollable Body */}
         <div className="p-6 sm:p-10 overflow-y-auto space-y-6 flex-1">
@@ -223,18 +388,18 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                         What Happened
                       </span>
                       <p className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 font-editorial text-base text-slate-900 dark:text-slate-100">
-                        {briefing.whatHappened || rep.description}
+                        {displayBriefing.whatHappened || rep?.description}
                       </p>
                     </div>
 
                     {/* Why It Matters */}
-                    {briefing.whyItMatters && (
+                    {displayBriefing.whyItMatters && (
                       <div className="space-y-1">
                         <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
                           Why It Matters
                         </span>
                         <p className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 font-editorial text-base text-slate-800 dark:text-slate-200">
-                          {briefing.whyItMatters}
+                          {displayBriefing.whyItMatters}
                         </p>
                       </div>
                     )}
@@ -248,7 +413,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                           <span>Confirmed Facts</span>
                         </div>
                         <ul className="space-y-1.5 text-xs text-slate-800 dark:text-slate-200">
-                          {(briefing.confirmedFacts || [rep.title]).map((fact: string, idx: number) => (
+                          {(displayBriefing.confirmedFacts || (rep ? [rep.title] : [''])).map((fact: string, idx: number) => (
                             <li key={idx} className="flex items-start gap-1.5">
                               <span className="text-emerald-600 dark:text-emerald-400 font-bold">•</span>
                               <span>{fact}</span>
@@ -264,8 +429,8 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                           <span>What Remains Uncertain</span>
                         </div>
                         <ul className="space-y-1.5 text-xs text-slate-800 dark:text-slate-200">
-                          {(briefing.uncertainties && briefing.uncertainties.length > 0
-                            ? briefing.uncertainties
+                          {(displayBriefing.uncertainties && displayBriefing.uncertainties.length > 0
+                            ? displayBriefing.uncertainties
                             : ['Implementation timeline and exact long-term economic trajectory remain under evaluation.']
                           ).map((unc: string, idx: number) => (
                             <li key={idx} className="flex items-start gap-1.5">
@@ -424,15 +589,19 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
 
         {/* Footer */}
         <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 flex items-center justify-between font-ui">
-          <a
-            href={rep.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 text-white font-bold text-xs hover:bg-sky-700 transition-colors shadow-sm"
-          >
-            <span>Read Lead Article on {rep.source?.name}</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
+          {rep ? (
+            <a
+              href={rep.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 text-white font-bold text-xs hover:bg-sky-700 transition-colors shadow-sm"
+            >
+              <span>Read Lead Article on {rep.source?.name}</span>
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          ) : (
+            <span />
+          )}
 
           <button
             onClick={onClose}

@@ -1,5 +1,5 @@
 import { Article } from '../providers/types.js';
-import { calculateTextSimilarity, normalizeUrl } from '../utils/urlNormalizer.js';
+import { jaccardSimilarity, normalizeUrl, tokenizeForSimilarity } from '../utils/urlNormalizer.js';
 
 export interface DeduplicationResult {
   uniqueArticles: Article[];
@@ -19,6 +19,18 @@ export class DeduplicationService {
     const duplicateMap: Record<string, { primaryId: string; reason: string; score: number }> = {};
     const seenUrls = new Set<string>();
 
+    // Tokenize each title once up front; the pair loop only compares pre-computed
+    // token sets. Without this the ~O(n^2) title comparisons re-tokenize every pair.
+    const tokenCache = new Map<string, Set<string>>();
+    const tokensFor = (article: Article): Set<string> => {
+      let tokens = tokenCache.get(article.id);
+      if (!tokens) {
+        tokens = tokenizeForSimilarity(article.title);
+        tokenCache.set(article.id, tokens);
+      }
+      return tokens;
+    };
+
     for (const article of articles) {
       const canonicalUrl = article.canonicalUrl || normalizeUrl(article.url);
 
@@ -33,14 +45,19 @@ export class DeduplicationService {
           };
           // Increment corroborating sources count on primary
           primary.corroboratingSourcesCount = (primary.corroboratingSourcesCount || 1) + 1;
+          if (!primary.supportingSources) primary.supportingSources = [];
+          if (!primary.supportingSources.some((s) => s.name === article.source.name)) {
+            primary.supportingSources.push({ name: article.source.name, url: article.url });
+          }
         }
         continue;
       }
 
       // Layer 2 & 3: Semantic/Title Similarity check against already kept unique articles
+      const articleTokens = tokensFor(article);
       let duplicateFound = false;
       for (const existing of uniqueArticles) {
-        const titleSim = calculateTextSimilarity(article.title, existing.title);
+        const titleSim = jaccardSimilarity(articleTokens, tokensFor(existing));
 
         // Publication time difference in hours
         const timeDiffHours = Math.abs(
@@ -55,6 +72,10 @@ export class DeduplicationService {
             score: titleSim,
           };
           existing.corroboratingSourcesCount = (existing.corroboratingSourcesCount || 1) + 1;
+          if (!existing.supportingSources) existing.supportingSources = [];
+          if (!existing.supportingSources.some((s) => s.name === article.source.name)) {
+            existing.supportingSources.push({ name: article.source.name, url: article.url });
+          }
           break;
         }
       }

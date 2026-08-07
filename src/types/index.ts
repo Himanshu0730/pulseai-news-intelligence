@@ -67,6 +67,7 @@ export interface Article {
     details?: string;
   };
   misinformationRisk?: MisinformationAssessment;
+  supportingSources?: Array<{ name: string; url: string }>;
   personalizationScore?: number;
   explanationTag?: string;
   scoreBreakdown?: {

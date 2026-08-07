@@ -8,7 +8,12 @@ interface GuestUsage {
 }
 
 class GuestService {
+  // In-memory per-instance store. On serverless (Vercel) each cold start resets
+  // all counters; persistent enforcement would require a shared store (Redis/DB).
   private store: Map<string, GuestUsage> = new Map();
+  // Cap the number of tracked guests so a client that rotates x-guest-id cannot
+  // grow this map without bound on a long-running process.
+  private static readonly MAX_GUESTS = 10_000;
 
   private getTodayString(): string {
     return new Date().toISOString().split('T')[0];
@@ -19,6 +24,15 @@ class GuestService {
     const existing = this.store.get(guestId);
 
     if (!existing || existing.date !== today) {
+      if (this.store.size >= GuestService.MAX_GUESTS) {
+        // Evict oldest entries (insertion order) to bound memory.
+        let toRemove = this.store.size - GuestService.MAX_GUESTS + 1;
+        for (const key of this.store.keys()) {
+          if (toRemove <= 0) break;
+          this.store.delete(key);
+          toRemove--;
+        }
+      }
       const initial: GuestUsage = {
         date: today,
         articlesOpened: 0,
