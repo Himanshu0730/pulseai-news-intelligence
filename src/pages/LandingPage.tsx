@@ -80,7 +80,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onExplore, onGetStarte
               <button
                 id="hero-cta-get-started"
                 onClick={onGetStarted}
-                className="w-full sm:w-auto px-8 py-3.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-medium text-base shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group cursor-pointer"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-medium text-base shadow-sm hover:shadow transition-all flex items-center justify-center gap-2 group cursor-pointer"
               >
                 <span>{t('heroCtaPrimary')}</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -411,7 +411,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onExplore, onGetStarte
                 onClick={() => setLanguage(lang.code)}
                 className={`px-3.5 py-1.5 rounded-md text-xs font-medium transition-all cursor-pointer ${
                   language === lang.code
-                    ? 'bg-sky-600 text-white shadow-sm'
+                    ? 'bg-sky-700 text-white shadow-sm'
                     : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                 }`}
               >
@@ -467,7 +467,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onExplore, onGetStarte
       <footer className="py-10 bg-slate-950 text-slate-400 text-xs border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-sky-600 flex items-center justify-center font-serif font-bold text-white text-xs">
+            <div className="w-6 h-6 rounded-md bg-sky-700 flex items-center justify-center font-serif font-bold text-white text-xs">
               P
             </div>
             <span className="font-semibold text-slate-200 text-sm">{t('brandName')}</span>

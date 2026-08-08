@@ -58,7 +58,7 @@ export const GuestTrialModal: React.FC<GuestTrialModalProps> = ({ activeView }) 
             <div className="space-y-3 pt-2">
               <button
                 onClick={() => openAuthModal('login')}
-                className="w-full py-3 px-4 bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
               >
                 <LogIn className="w-4 h-4" />
                 <span>Sign In to Your Account</span>

@@ -82,7 +82,7 @@ export const BookmarksPage: React.FC = () => {
                   onClick={() => setFilterCategory(cat)}
                   className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                     filterCategory === cat
-                      ? 'bg-sky-600 text-white font-bold shadow-xs'
+                      ? 'bg-sky-700 text-white font-bold shadow-xs'
                       : 'bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800'
                   }`}
                 >

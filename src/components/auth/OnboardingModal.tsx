@@ -118,7 +118,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({ isOpen, onComp
             <button
               onClick={handleSave}
               disabled={isSaving}
-              className="w-full py-3.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+              className="w-full py-3.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white font-medium text-sm transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
             >
               <span>{isSaving ? t('saving') : t('saveInterests')}</span>
               <ArrowRight className="w-4 h-4" />

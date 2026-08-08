@@ -91,7 +91,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
             <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-black/20 lg:hidden" />
             
             <div className="absolute top-4 left-4 flex items-center gap-2">
-              <span className="px-3 py-1 rounded-full bg-sky-600 text-white text-xs font-bold uppercase tracking-wider shadow-md">
+              <span className="px-3 py-1 rounded-full bg-sky-700 text-white text-xs font-bold uppercase tracking-wider shadow-md">
                 ⚡ Breaking Story
               </span>
               <span className="px-2.5 py-1 rounded-full bg-slate-900/80 backdrop-blur-md text-white text-xs font-semibold border border-white/20">
@@ -174,7 +174,7 @@ export const ArticleCard: React.FC<ArticleCardProps> = ({
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 font-ui">
               <button
                 onClick={handleCardClick}
-                className="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs transition-all shadow-md flex items-center gap-2 cursor-pointer"
               >
                 <span>Read Full Story</span>
                 <ExternalLink className="w-3.5 h-3.5" />

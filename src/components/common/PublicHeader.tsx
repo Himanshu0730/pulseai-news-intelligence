@@ -132,7 +132,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ onExplore, onNavigat
               {user ? (
                 <button
                   onClick={onExplore}
-                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-all shadow-2xs cursor-pointer"
+                  className="px-3.5 py-1.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-lg transition-all shadow-2xs cursor-pointer"
                 >
                   {t('openApp') || 'Open App'}
                 </button>
@@ -146,7 +146,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ onExplore, onNavigat
                   </button>
                   <button
                     onClick={() => openAuthModal('register')}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
                   >
                     <User className="w-3 h-3" />
                     <span>{t('getStarted')}</span>
@@ -216,7 +216,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ onExplore, onNavigat
                   setIsMobileMenuOpen(false);
                   onExplore();
                 }}
-                className="w-full py-2.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl transition-all shadow-2xs text-center"
+                className="w-full py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-xl transition-all shadow-2xs text-center"
               >
                 {t('openApp') || 'Open App'}
               </button>
@@ -236,7 +236,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ onExplore, onNavigat
                     setIsMobileMenuOpen(false);
                     openAuthModal('register');
                   }}
-                  className="w-full py-2.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl flex items-center justify-center gap-1.5 shadow-2xs"
+                  className="w-full py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-xl flex items-center justify-center gap-1.5 shadow-2xs"
                 >
                   <User className="w-3.5 h-3.5" />
                   <span>{t('getStarted')}</span>

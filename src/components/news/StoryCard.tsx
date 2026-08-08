@@ -211,7 +211,7 @@ export const StoryCard: React.FC<StoryCardProps> = ({ cluster, onOpenStory, onCo
       <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 gap-2">
         <button
           onClick={() => onOpenStory(cluster)}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-sm"
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs transition-colors cursor-pointer shadow-sm"
         >
           <Sparkles className="w-3.5 h-3.5" />
           <span>Explore Story Briefing</span>

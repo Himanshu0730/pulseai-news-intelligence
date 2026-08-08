@@ -363,7 +363,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                   <button
                     onClick={handleGenerateBriefing}
                     disabled={isGeneratingBriefing}
-                    className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-700 hover:bg-sky-800 text-white text-xs font-bold transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
                   >
                     {isGeneratingBriefing ? (
                       <>
@@ -495,7 +495,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                       href={art.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs"
+                      className="px-3.5 py-2 rounded-xl bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <span>Read Original</span>
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -594,7 +594,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
               href={rep.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 text-white font-bold text-xs hover:bg-sky-700 transition-colors shadow-sm"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-700 text-white font-bold text-xs hover:bg-sky-800 transition-colors shadow-sm"
             >
               <span>Read Lead Article on {rep.source?.name}</span>
               <ExternalLink className="w-3.5 h-3.5" />

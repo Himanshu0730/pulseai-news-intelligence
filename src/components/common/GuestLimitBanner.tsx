@@ -48,7 +48,7 @@ export const GuestLimitBanner: React.FC = () => {
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => openAuthModal('register')}
-            className="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+            className="px-3 py-1 rounded-lg bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
           >
             <UserPlus className="w-3.5 h-3.5" />
             <span>Create Free Account</span>

@@ -191,7 +191,7 @@ export const AISummaryModal: React.FC<AISummaryModalProps> = ({ article, summary
 
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer shadow-xs"
+            className="px-5 py-2 bg-sky-700 hover:bg-sky-800 text-white font-bold text-xs rounded-xl transition-colors cursor-pointer shadow-xs"
           >
             Done
           </button>

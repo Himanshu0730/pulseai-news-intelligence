@@ -172,7 +172,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Bookmark className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
               <span className="hidden lg:inline">{t('savedBookmarks')}</span>
               {bookmarks.length > 0 && (
-                <span className="px-1.5 py-0.2 text-[10px] font-bold bg-sky-600 text-white rounded-full">
+                <span className="px-1.5 py-0.2 text-[10px] font-bold bg-sky-700 text-white rounded-full">
                   {bookmarks.length}
                 </span>
               )}
@@ -259,7 +259,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   </button>
                   <button
                     onClick={() => openAuthModal('register')}
-                    className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                    className="px-3 py-1.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-lg transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
                   >
                     <User className="w-3 h-3" />
                     <span>{t('getStarted')}</span>
@@ -346,7 +346,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>{t('savedBookmarks')}</span>
             </div>
             {bookmarks.length > 0 && (
-              <span className="px-2 py-0.5 text-xs font-bold bg-sky-600 text-white rounded-full">
+              <span className="px-2 py-0.5 text-xs font-bold bg-sky-700 text-white rounded-full">
                 {bookmarks.length}
               </span>
             )}
@@ -402,7 +402,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     setIsMobileMenuOpen(false);
                     openAuthModal('register');
                   }}
-                  className="w-full py-2.5 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-xl flex items-center justify-center gap-1.5 shadow-2xs"
+                  className="w-full py-2.5 text-xs font-semibold text-white bg-sky-700 hover:bg-sky-800 rounded-xl flex items-center justify-center gap-1.5 shadow-2xs"
                 >
                   <User className="w-3.5 h-3.5" />
                   <span>{t('getStarted')}</span>

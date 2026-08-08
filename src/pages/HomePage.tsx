@@ -400,7 +400,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <p className="text-xs text-slate-600 dark:text-slate-400 max-w-md mx-auto">{error}</p>
                 <button
                   onClick={loadNews}
-                  className="px-4 py-2 bg-sky-600 text-white font-semibold text-xs rounded-lg hover:bg-sky-700 transition-colors inline-block cursor-pointer"
+                  className="px-4 py-2 bg-sky-700 text-white font-semibold text-xs rounded-lg hover:bg-sky-800 transition-colors inline-block cursor-pointer"
                 >
                   Retry Fetch
                 </button>
@@ -409,10 +409,10 @@ export const HomePage: React.FC<HomePageProps> = ({
               /* Story Clusters First View */
               <div className="space-y-5">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold">
+                  <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
                     Grouped Event Clusters ({storyClusters.length} Stories)
                   </span>
-                  <span className="text-xs text-slate-500">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     Showing multi-outlet corroboration
                   </span>
                 </div>
@@ -463,7 +463,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 {displayedArticles.length > 1 && (
                   <div>
                     <div className="flex items-center justify-between mb-4 px-1 font-ui">
-                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500">
+                      <span className="text-xs font-mono font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         Developing News Stream ({displayedArticles.length - 1} Stories)
                       </span>
                     </div>
