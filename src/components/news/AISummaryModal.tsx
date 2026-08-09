@@ -123,7 +123,7 @@ export const AISummaryModal: React.FC<AISummaryModalProps> = ({ article, summary
               {activeTab === 'analysis' && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                       Sentiment Tone
                     </span>
                     <span className="text-sm font-semibold text-sky-700 dark:text-sky-300">
@@ -132,7 +132,7 @@ export const AISummaryModal: React.FC<AISummaryModalProps> = ({ article, summary
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1">
                       Perspective Tone
                     </span>
                     <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">
@@ -141,7 +141,7 @@ export const AISummaryModal: React.FC<AISummaryModalProps> = ({ article, summary
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1 flex items-center gap-1">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       Time Saved
                     </span>
@@ -152,7 +152,7 @@ export const AISummaryModal: React.FC<AISummaryModalProps> = ({ article, summary
 
                   {summary.analysis.key_entities && summary.analysis.key_entities.length > 0 && (
                     <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 sm:col-span-2">
-                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2 flex items-center gap-1">
+                      <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-2 flex items-center gap-1">
                         <Tag className="w-3 h-3" />
                         Key Subject Entities
                       </span>

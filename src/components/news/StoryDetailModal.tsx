@@ -395,7 +395,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                     {/* Why It Matters */}
                     {displayBriefing.whyItMatters && (
                       <div className="space-y-1">
-                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                        <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
                           Why It Matters
                         </span>
                         <p className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 font-editorial text-base text-slate-800 dark:text-slate-200">
@@ -443,7 +443,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500 text-center py-6">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-6">
                     Click "Regenerate Briefing" to compile a 60-second grounded RAG overview across all {articles.length} articles.
                   </p>
                 )}
@@ -458,7 +458,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                   Multi-Outlet Coverage ({articles.length} Reporting Outlets)
                 </h3>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
                   Unique Publishers: {cluster.distinctPublisherCount}
                 </span>
               </div>
@@ -522,7 +522,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                   .map((art, i) => (
                     <div key={art.id || i} className="relative space-y-1">
                       <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-sky-600 ring-4 ring-white dark:ring-slate-900" />
-                      <div className="flex items-center gap-2 text-xs text-slate-500 font-mono">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-mono">
                         <Calendar className="w-3 h-3" />
                         <span>{new Date(art.publishedAt).toLocaleString()}</span>
                         <span className="font-bold text-slate-700 dark:text-slate-300">• {art.source?.name}</span>
@@ -558,7 +558,7 @@ export const StoryDetailModal: React.FC<StoryDetailModalProps> = ({ cluster, onC
                       <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 font-mono font-bold text-xs">
                         Citation #{idx + 1}
                       </span>
-                      <span className="text-xs text-slate-500">{art.source?.name} • {formatTimeAgo(art.publishedAt)}</span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{art.source?.name} • {formatTimeAgo(art.publishedAt)}</span>
                     </div>
 
                     <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">

@@ -153,7 +153,7 @@ export const StoryCard: React.FC<StoryCardProps> = ({ cluster, onOpenStory, onCo
             </div>
             {cluster.summaryBriefing.whyItMatters && (
               <div>
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-0.5">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-0.5">
                   Why It Matters
                 </span>
                 <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed font-ui">

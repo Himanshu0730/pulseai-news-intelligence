@@ -506,7 +506,7 @@ export const ArticleDetailModal: React.FC<ArticleDetailModalProps> = ({ article,
 
                     <div className="space-y-2">
                       <div className="flex justify-between items-center text-xs">
-                        <span className="text-slate-500">Credibility Index</span>
+                        <span className="text-slate-500 dark:text-slate-400">Credibility Index</span>
                         <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
                           {article.credibilityScore || 92}/100
                         </span>

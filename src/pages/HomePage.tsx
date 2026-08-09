@@ -292,7 +292,15 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
-  const displayedArticles = activeView === 'trending' ? trendingArticles : articles;
+  // The main feed column always shows the current search/category dataset when a
+  // filter is active (even on the Trending view), so search results and category
+  // feeds are never hidden behind the trending placeholder.
+  const displayedArticles =
+    searchQuery.trim() || selectedCategory !== 'All'
+      ? articles
+      : activeView === 'trending'
+      ? trendingArticles
+      : articles;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col pb-16 transition-colors duration-200">

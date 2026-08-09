@@ -143,7 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setLocalSearch(e.target.value);
                   onSearchChange(e.target.value);
                 }}
-                className="w-full pl-8 sm:pl-9 pr-7 sm:pr-8 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm rounded-lg placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
+                className="w-full pl-8 sm:pl-9 pr-7 sm:pr-8 py-1.5 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs sm:text-sm rounded-lg placeholder-slate-400 dark:placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 transition-all"
               />
               {localSearch && (
                 <button
@@ -243,7 +243,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                   <button
                     onClick={logout}
-                    className="p-2 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
+                    className="p-2 text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition-colors cursor-pointer"
                     title={t('signOut')}
                   >
                     <LogOut className="w-3.5 h-3.5" />
@@ -360,7 +360,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <img src={user.avatarUrl} alt={user.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
                   <div className="min-w-0">
                     <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
-                    <p className="text-[10px] text-slate-500 truncate">{user.email}</p>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
