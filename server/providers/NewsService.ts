@@ -724,8 +724,19 @@ export async function aggregateProviders(
           combinedCandidates.push(...results);
           // Headline feeds don't need every source: as soon as the pool is
           // usable we return immediately (fast cold start) instead of waiting
-          // for slow RSS feeds to time out.
-          if (!options.query && combinedCandidates.length >= minUsableArticles) {
+          // for slow RSS feeds to time out. Exception: india-scoped feeds. The
+          // API providers (NewsAPI/GNews) return India content for country=in
+          // but WITHOUT a `region` field, so a pool built only from them would
+          // be dropped by the strict india scope filter. Do not early-return
+          // until a provider whose results carry region metadata (the curated
+          // RSS feeds) has settled.
+          const indiaScopedHeadlines = !options.query && options.country === 'in';
+          const poolHasRegionMetadata = combinedCandidates.some((a) => a.region);
+          if (
+            !options.query &&
+            combinedCandidates.length >= minUsableArticles &&
+            (!indiaScopedHeadlines || poolHasRegionMetadata)
+          ) {
             allSettledResolve();
           }
         }
@@ -748,6 +759,18 @@ export async function aggregateProviders(
   // the only healthy source is a slow RSS feed. Keep waiting for the stragglers
   // instead of returning an empty pool.
   if (combinedCandidates.length === 0 && finished < total) {
+    await allSettled;
+  } else if (
+    // India-scoped headline feed with no region metadata yet: the pool would be
+    // dropped by the strict india scope filter. Keep waiting (bounded by each
+    // provider's own internal timeout) for the slow RSS provider that carries
+    // reliable India tags instead of returning a pool the UI renders as
+    // "No News Found" purely because the only tagged source is slow.
+    options.country === 'in' &&
+    !options.query &&
+    finished < total &&
+    !combinedCandidates.some((a) => a.region)
+  ) {
     await allSettled;
   }
 

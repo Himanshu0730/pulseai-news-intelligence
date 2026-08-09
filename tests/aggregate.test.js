@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import { test } from 'node:test';
 import { aggregateProviders } from '../server/providers/NewsService.ts';
+import { normalizeArticleRegions, filterArticlesByScope } from '../server/services/geoScopeService.ts';
 
 const article = (id) => ({
   id: `art_${id}`,
@@ -153,4 +154,95 @@ test('7. searchNews is used when a query is provided', async () => {
 
   assert.strictEqual(result.rawArticles.length, 1);
   assert.strictEqual(result.rawArticles[0].id, 'art_q_crypto');
+});
+
+test('8. India-scoped headline fetch waits for the region-tagged RSS provider instead of early-exiting on unlabeled API results', async () => {
+  // Real-world race: NewsAPI/GNews (country=in) return plenty of articles but
+  // WITHOUT `region` metadata, and their source names are unknown to the
+  // geo-scope list, so normalizeArticleRegions() leaves them undefined. The
+  // curated RSS provider carries reliable `region: 'India'` metadata but settles
+  // after the 2500ms AGGREGATE_DEADLINE_MS (live feeds take ~3s per timeout).
+  const unlabeled = Array.from({ length: 12 }, (_, i) => ({
+    ...article(`api_${i}`),
+    source: { name: 'Example News Hub' },
+  }));
+  const rssIndia = Array.from({ length: 5 }, (_, i) => ({
+    ...article(`rss_${i}`),
+    source: { name: 'The Hindu' },
+    region: 'India',
+  }));
+
+  const { result, elapsedMs } = await elapsed(() =>
+    aggregateProviders(
+      [
+        fakeProvider('NewsAPI', { articles: unlabeled }),
+        fakeProvider('Slow RSS', { delay: 200, articles: rssIndia }),
+      ],
+      { country: 'in' }, // scope=india headline fetch
+      50, // deadline fires well before the RSS provider settles
+      8
+    )
+  );
+
+  assert.strictEqual(result.allProvidersSettled, true, 'must keep waiting for the region-tagged RSS provider');
+  assert.ok(result.rawArticles.some((a) => a.region === 'India'), 'region-tagged RSS articles must be included');
+  assert.ok(elapsedMs >= 150, `expected to wait for the slow RSS provider (elapsed ${elapsedMs}ms)`);
+
+  // End-to-end: the strict india scope filter must not return an empty feed.
+  const scoped = filterArticlesByScope(normalizeArticleRegions(result.rawArticles), 'india');
+  assert.ok(scoped.length > 0, 'strict india scope must return a non-empty, correctly-scoped result');
+});
+
+test('9. All-scope headline feed keeps the fast early-exit (unlabeled pool is fine when no scope filter applies)', async () => {
+  // Scope=all passes country=global; the usable-pool early-exit must still fire
+  // so world/all cold starts stay fast. This pins the fast path so the india
+  // fix cannot regress the all scope.
+  const { result, elapsedMs } = await elapsed(() =>
+    aggregateProviders(
+      [
+        fakeProvider('NewsAPI', { articles: articles(12) }),
+        fakeProvider('Slow RSS', { delay: 200, articles: articles(5) }),
+      ],
+      { country: 'global' }, // scope=all
+      500,
+      8
+    )
+  );
+
+  assert.ok(result.rawArticles.length >= 8, 'usable pool must be returned');
+  assert.strictEqual(result.allProvidersSettled, false, 'slow provider still running; background refresh folds it in');
+  assert.ok(elapsedMs < 200, `all-scope must keep the fast path (elapsed ${elapsedMs}ms)`);
+});
+
+test('10. India scope where RSS also fails/times out: deadline fallback still returns gracefully (no infinite wait)', async () => {
+  // Worst case: a fast unlabeled NewsAPI response PLUS an RSS provider that
+  // settles with ZERO region-tagged articles (network failure/timeout). The
+  // india deadline fallback must not hang forever waiting for region metadata
+  // that will never arrive — it returns whatever settled, and the strict scope
+  // filter yields an empty (but honest) India feed.
+  const unlabeled = Array.from({ length: 12 }, (_, i) => ({
+    ...article(`api_${i}`),
+    source: { name: 'Example News Hub' },
+  }));
+
+  const { result, elapsedMs } = await elapsed(() =>
+    aggregateProviders(
+      [
+        fakeProvider('NewsAPI', { articles: unlabeled }),
+        fakeProvider('Slow RSS', { delay: 200, articles: [] }), // fails/times out -> no region-tagged content
+      ],
+      { country: 'in' }, // scope=india headline fetch
+      50,
+      8
+    )
+  );
+
+  assert.strictEqual(result.allProvidersSettled, true, 'aggregate must settle once every provider finishes');
+  assert.ok(elapsedMs < 1000, `must not hang for region metadata that never arrives (elapsed ${elapsedMs}ms)`);
+  assert.ok(elapsedMs >= 150, `still waited for the RSS provider to settle (elapsed ${elapsedMs}ms)`);
+  assert.strictEqual(result.rawArticles.length, 12, 'unlabeled API results are returned, not discarded');
+
+  // Honest empty India feed: the strict scope filter drops the unlabeled pool.
+  const scoped = filterArticlesByScope(normalizeArticleRegions(result.rawArticles), 'india');
+  assert.strictEqual(scoped.length, 0, 'empty India feed is the correct honest result when no India-tagged content exists');
 });
