@@ -78,76 +78,19 @@ export class NewsService {
    *
    * Replaces sequential failover with concurrent multi-provider aggregation.
    * Queries all registered providers (NewsAPI, GNews, Live RSS, PIB/ISRO/RBI) in parallel
-   * using Promise.allSettled and merges raw candidate articles.
+   * and merges raw candidate articles.
    */
   private async aggregateFromAllProviders(options: NewsFetchOptions = {}): Promise<{
     rawArticles: Article[];
     activeProviders: string[];
     allProvidersSettled: boolean;
   }> {
-    const activeProviders: string[] = [];
-    const combinedCandidates: Article[] = [];
-
-    // Resolve when every provider has settled, when the usable-article pool is
-    // full, or when the deadline elapses — whichever comes first. Slow providers
-    // (typically the 3s-timeout RSS feeds) keep running and simply miss this
-    // response; the background refresh picks up their results next time.
-    let allSettledResolve!: () => void;
-    const allSettled = new Promise<void>((resolve) => {
-      allSettledResolve = resolve;
-    });
-
-    let finished = 0;
-    const total = this.providers.length;
-
-    // Query all available providers concurrently. Each provider pushes into the
-    // shared arrays as it settles so a deadline race can return partial results.
-    const providerPromises = this.providers.map(async (provider) => {
-      const t0 = Date.now();
-      if (provider.isAvailable && !provider.isAvailable()) {
-        finished += 1;
-        return;
-      }
-      try {
-        let results: Article[] = [];
-        if (options.query) {
-          results = await provider.searchNews(options.query, options);
-        } else {
-          results = await provider.fetchHeadlines(options);
-        }
-
-        logPerf(`Provider ${provider.name}`, elapsedMs(t0));
-        if (Array.isArray(results) && results.length > 0) {
-          activeProviders.push(provider.name);
-          combinedCandidates.push(...results);
-          // Headline feeds don't need every source: as soon as the pool is
-          // usable we return immediately (fast cold start) instead of waiting
-          // for slow RSS feeds to time out.
-          if (!options.query && combinedCandidates.length >= NewsService.MIN_USABLE_ARTICLES) {
-            allSettledResolve();
-          }
-        }
-      } catch (err) {
-        logPerf(`Provider ${provider.name} (failed)`, elapsedMs(t0));
-        console.warn(`[NewsService] Provider ${provider.name} query failed:`, (err as Error).message);
-      } finally {
-        finished += 1;
-        if (finished >= total) allSettledResolve();
-      }
-    });
-
-    await Promise.race([
-      allSettled,
-      new Promise<void>((resolve) =>
-        setTimeout(resolve, NewsService.AGGREGATE_DEADLINE_MS)
-      ),
-    ]);
-
-    return {
-      rawArticles: combinedCandidates,
-      activeProviders: [...new Set(activeProviders)],
-      allProvidersSettled: finished >= total,
-    };
+    return aggregateProviders(
+      this.providers,
+      options,
+      NewsService.AGGREGATE_DEADLINE_MS,
+      NewsService.MIN_USABLE_ARTICLES
+    );
   }
 
   /**
@@ -653,6 +596,104 @@ export class NewsService {
   public generateCoverageComparison(article: Article) {
     return ragService.generateWhatChanged([article]);
   }
+}
+
+/**
+ * Query every provider concurrently and merge raw candidate articles.
+ *
+ * The aggregate settles when every provider has finished, when the usable-article
+ * pool is full (headline feeds only), or when `deadlineMs` elapses — whichever
+ * comes first. Slow providers (typically the 3s-timeout RSS feeds) that are still
+ * running when the deadline fires simply miss this response; the returned
+ * `allProvidersSettled` flag lets the caller fold their results in via a
+ * background refresh.
+ *
+ * A slow provider is NEVER dropped when it is the only source of content: if the
+ * deadline fires while providers are still running and nothing usable has settled
+ * yet, the aggregate keeps waiting for the stragglers. That wait is bounded by
+ * each provider's own internal timeout, so it can only add content, never block
+ * indefinitely — and it prevents a cold start from returning an empty pool the
+ * client would render as "No News Found" purely because the only healthy source
+ * happens to be slow.
+ */
+export async function aggregateProviders(
+  providers: NewsProvider[],
+  options: NewsFetchOptions = {},
+  deadlineMs = 2500,
+  minUsableArticles = 8
+): Promise<{ rawArticles: Article[]; activeProviders: string[]; allProvidersSettled: boolean }> {
+  const activeProviders: string[] = [];
+  const combinedCandidates: Article[] = [];
+
+  // Resolve when every provider has settled or the usable-article pool is full.
+  let allSettledResolve!: () => void;
+  const allSettled = new Promise<void>((resolve) => {
+    allSettledResolve = resolve;
+  });
+
+  let finished = 0;
+  const total = providers.length;
+
+  const markSettled = () => {
+    finished += 1;
+    if (finished >= total) allSettledResolve();
+  };
+
+  // Query all available providers concurrently. Each provider pushes into the
+  // shared arrays as it settles so a deadline race can return partial results.
+  for (const provider of providers) {
+    (async () => {
+      const t0 = Date.now();
+      if (provider.isAvailable && !provider.isAvailable()) {
+        markSettled();
+        return;
+      }
+      try {
+        let results: Article[] = [];
+        if (options.query) {
+          results = await provider.searchNews(options.query, options);
+        } else {
+          results = await provider.fetchHeadlines(options);
+        }
+
+        logPerf(`Provider ${provider.name}`, elapsedMs(t0));
+        if (Array.isArray(results) && results.length > 0) {
+          activeProviders.push(provider.name);
+          combinedCandidates.push(...results);
+          // Headline feeds don't need every source: as soon as the pool is
+          // usable we return immediately (fast cold start) instead of waiting
+          // for slow RSS feeds to time out.
+          if (!options.query && combinedCandidates.length >= minUsableArticles) {
+            allSettledResolve();
+          }
+        }
+      } catch (err) {
+        logPerf(`Provider ${provider.name} (failed)`, elapsedMs(t0));
+        console.warn(`[NewsService] Provider ${provider.name} query failed:`, (err as Error).message);
+      } finally {
+        markSettled();
+      }
+    })();
+  }
+
+  await Promise.race([
+    allSettled,
+    new Promise<void>((resolve) => setTimeout(resolve, deadlineMs)),
+  ]);
+
+  // The deadline raced ahead of every provider while at least one is still
+  // running and nothing usable has settled — the classic cold-start case where
+  // the only healthy source is a slow RSS feed. Keep waiting for the stragglers
+  // instead of returning an empty pool.
+  if (combinedCandidates.length === 0 && finished < total) {
+    await allSettled;
+  }
+
+  return {
+    rawArticles: combinedCandidates,
+    activeProviders: [...new Set(activeProviders)],
+    allProvidersSettled: finished >= total,
+  };
 }
 
 export const newsService = new NewsService();
