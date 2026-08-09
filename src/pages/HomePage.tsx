@@ -11,6 +11,7 @@ import { CompareCoverageModal } from '../components/news/CompareCoverageModal';
 import { StoryCard } from '../components/news/StoryCard';
 import { StoryDetailModal } from '../components/news/StoryDetailModal';
 import { TrendingSection } from '../components/news/TrendingSection';
+import { ViralSignalsSection } from '../components/news/ViralSignalsSection';
 import { useAuth } from '../context/AuthContext';
 import { useGuest } from '../context/GuestContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -55,6 +56,10 @@ export const HomePage: React.FC<HomePageProps> = ({
   const feedRequestSeq = useRef(0);
   const trendingRequestSeq = useRef(0);
 
+  // Bumped by the Refresh button so ViralSignalsSection also refetches (scope-
+  // aware) instead of serving a fresh client-cache entry.
+  const [socialRefreshKey, setSocialRefreshKey] = useState(0);
+
   // Perf: records the launch time of the newest feed request so the first
   // content commit can be measured end-to-end from initial load.
   const newsLaunchTime = useRef<number | null>(null);
@@ -89,8 +94,9 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   }, [activeView]);
 
-  // Load News Feed & Clusters
-  const loadNews = async () => {
+  // Load News Feed & Clusters. Pass force=true (Refresh button) to bypass both
+  // the client and server caches so the response is genuinely fresh data.
+  const loadNews = async (force = false) => {
     const t0 = performance.now();
     if (newsLaunchTime.current === null) newsLaunchTime.current = t0;
     const seq = ++feedRequestSeq.current;
@@ -99,6 +105,9 @@ export const HomePage: React.FC<HomePageProps> = ({
     const hasExisting = articles.length > 0 || storyClusters.length > 0;
     if (!hasExisting) setIsLoading(true);
     setError(null);
+
+    const freshParam = force ? '&refresh=1' : '';
+    const refreshOpt = { refresh: force };
 
     // Primary feed. Renders the instant it resolves — it is NOT gated behind
     // the story-clusters request, so the first screen never waits on RSS or
@@ -115,15 +124,18 @@ export const HomePage: React.FC<HomePageProps> = ({
             return;
           }
           feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
-            `/news/search?q=${encodeURIComponent(searchQuery)}&scope=${currentScope}`
+            `/news/search?q=${encodeURIComponent(searchQuery)}&scope=${currentScope}${freshParam}`,
+            refreshOpt
           );
         } else if (selectedCategory !== 'All') {
           feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
-            `/news/category/${encodeURIComponent(selectedCategory)}?scope=${currentScope}`
+            `/news/category/${encodeURIComponent(selectedCategory)}?scope=${currentScope}${freshParam}`,
+            refreshOpt
           );
         } else {
           feedPromise = api.get<{ articles: Article[]; activeProvider: string }>(
-            `/news/feed?scope=${currentScope}`
+            `/news/feed?scope=${currentScope}${freshParam}`,
+            refreshOpt
           );
         }
 
@@ -147,16 +159,22 @@ export const HomePage: React.FC<HomePageProps> = ({
 
     // Story clusters: fetched asynchronously in a fully non-blocking fashion.
     // When they land they replace the flat feed (in stories mode); they never
-    // delay the first paint of the article feed.
+    // delay the first paint of the article feed. Category clusters are fetched
+    // too, so "Story Clusters" + a category combine into grouped category stories.
     const runClusters = async () => {
       const clustersT0 = performance.now();
-      const shouldFetch = feedMode === 'stories' && !searchQuery.trim() && selectedCategory === 'All';
+      const shouldFetch = feedMode === 'stories' && !searchQuery.trim();
       if (!shouldFetch) {
         if (seq === feedRequestSeq.current) setStoryClusters([]);
         return;
       }
       try {
-        const res = await api.get<{ clusters: StoryCluster[] }>(`/news/clusters?scope=${currentScope}`);
+        const categoryParam =
+          selectedCategory !== 'All' ? `&category=${encodeURIComponent(selectedCategory)}` : '';
+        const res = await api.get<{ clusters: StoryCluster[] }>(
+          `/news/clusters?scope=${currentScope}${categoryParam}${freshParam}`,
+          refreshOpt
+        );
         if (seq !== feedRequestSeq.current) return;
         logPerf('Story Clusters', performance.now() - clustersT0, `${res.clusters?.length || 0} clusters`);
         setStoryClusters(res.clusters || []);
@@ -175,12 +193,13 @@ export const HomePage: React.FC<HomePageProps> = ({
     logPerf('HomePage loadNews (launch)', performance.now() - t0);
   };
 
-  const loadTrending = async () => {
+  const loadTrending = async (force = false) => {
     const t0 = performance.now();
     const seq = ++trendingRequestSeq.current;
     try {
       const data = await api.get<{ articles: Article[]; topics: string[] }>(
-        `/news/trending?scope=${currentScope}`
+        `/news/trending?scope=${currentScope}${force ? '&refresh=1' : ''}`,
+        { refresh: force }
       );
       if (seq !== trendingRequestSeq.current) return;
       logPerf('News Trending', performance.now() - t0, `${data.articles.length} articles`);
@@ -198,6 +217,14 @@ export const HomePage: React.FC<HomePageProps> = ({
   useEffect(() => {
     loadTrending();
   }, [currentScope]);
+
+  // Searching must never show stale category state: once the user searches, the
+  // category highlight/context resets to 'All' (the search branch owns the feed).
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      setSelectedCategory('All');
+    }
+  }, [searchQuery]);
 
   // Reset the progressive-render window whenever a new dataset arrives.
   useEffect(() => {
@@ -318,7 +345,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="flex flex-wrap items-center gap-2.5">
             
             {/* View Mode Switcher: Story Clusters vs All Articles */}
-            {!searchQuery && selectedCategory === 'All' && activeView !== 'trending' && (
+            {!searchQuery && activeView !== 'trending' && (
               <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700">
                 <button
                   onClick={() => setFeedMode('stories')}
@@ -364,7 +391,11 @@ export const HomePage: React.FC<HomePageProps> = ({
             ) : null}
 
             <button
-              onClick={loadNews}
+              onClick={() => {
+                loadNews(true);
+                loadTrending(true);
+                setSocialRefreshKey((k) => k + 1);
+              }}
               className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
               title="Refresh Feed"
             >
@@ -405,7 +436,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   Retry Fetch
                 </button>
               </div>
-            ) : feedMode === 'stories' && !searchQuery && selectedCategory === 'All' && storyClusters.length > 0 ? (
+            ) : feedMode === 'stories' && !searchQuery && storyClusters.length > 0 ? (
               /* Story Clusters First View */
               <div className="space-y-5">
                 <div className="flex items-center justify-between px-1">
@@ -497,6 +528,8 @@ export const HomePage: React.FC<HomePageProps> = ({
               onSelectTopic={(topic) => onSearchChange(topic)}
               isLoading={isLoading}
             />
+
+            <ViralSignalsSection scope={currentScope} refreshToken={socialRefreshKey} />
 
             {/* Platform Feature Highlight Card */}
             <div className="bg-sky-50/70 dark:bg-slate-900 border border-sky-200/80 dark:border-slate-800 rounded-2xl p-5 space-y-3 font-ui shadow-2xs">

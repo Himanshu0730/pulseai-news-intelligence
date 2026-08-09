@@ -47,6 +47,7 @@ const NEWS_FRESH_OVERRIDES: Record<string, number> = {
   '/news/trending': 2 * 60 * 1000,
   '/news/clusters': 2 * 60 * 1000,
   '/news/feed': 60 * 1000,
+  '/news/social-signals': 60 * 1000,
 };
 const newsCache = new Map<string, { data: unknown; expiresAt: number; lastUsed: number }>();
 const newsRefreshing = new Set<string>();
@@ -132,16 +133,26 @@ async function requestInner<T>(endpoint: string, options: RequestInit): Promise<
   return data as T;
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit & { refresh?: boolean } = {}): Promise<T> {
   const method = (options.method || 'GET').toUpperCase();
   const t0 = performance.now();
 
   if (isCacheableNewsGet(endpoint, method)) {
     const now = Date.now();
     const cacheKey = newsCacheKey(endpoint);
-    const cached = newsCache.get(cacheKey);
     const freshMs = newsFreshMs(endpoint);
 
+    // Hard refresh: bypass the client cache entirely, then repopulate the
+    // canonical entry so a subsequent plain request also gets the fresh data.
+    if (options.refresh) {
+      logPerf(`Cache refresh ${endpoint.split('?')[0]}`, performance.now() - t0);
+      const data = await requestInner<T>(endpoint, options);
+      newsCache.set(cacheKey, { data, expiresAt: Date.now(), lastUsed: Date.now() });
+      evictNewsCache(Date.now());
+      return data;
+    }
+
+    const cached = newsCache.get(cacheKey);
     if (cached) {
       cached.lastUsed = now;
       if (now < cached.expiresAt) {
@@ -179,7 +190,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 }
 
 export const api = {
-  get: <T>(endpoint: string) => request<T>(endpoint, { method: 'GET' }),
+  get: <T>(endpoint: string, opts: { refresh?: boolean } = {}) =>
+    request<T>(endpoint, { method: 'GET', ...opts }),
   post: <T>(endpoint: string, body?: any) =>
     request<T>(endpoint, { method: 'POST', body: JSON.stringify(body) }),
   put: <T>(endpoint: string, body?: any) =>

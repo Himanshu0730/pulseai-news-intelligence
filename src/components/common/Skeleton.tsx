@@ -125,6 +125,25 @@ export const TrendingSkeleton: React.FC = () => {
   );
 };
 
+export const ViralSignalsSkeleton: React.FC = () => {
+  return (
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 space-y-4 animate-pulse shadow-2xs">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="h-5 w-32 bg-slate-200 dark:bg-slate-800 rounded-md" />
+        <div className="h-4 w-14 bg-slate-200 dark:bg-slate-800 rounded-full" />
+      </div>
+      <div className="h-7 bg-slate-200 dark:bg-slate-800 rounded-lg w-full" />
+      {[1, 2, 3].map((idx) => (
+        <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800/80 space-y-2">
+          <div className="h-3 w-24 bg-slate-200 dark:bg-slate-800 rounded-full" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-full" />
+          <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export const SummarySkeleton: React.FC = () => {
   return (
     <div className="space-y-4 animate-pulse p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl">

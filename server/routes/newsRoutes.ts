@@ -7,6 +7,7 @@ import { geminiService } from '../services/geminiService.js';
 import { guestService } from '../services/guestService.js';
 import { misinformationService } from '../services/misinformationService.js';
 import { ragService } from '../services/ragService.js';
+import { socialSignalService } from '../services/socialSignalService.js';
 import { elapsedMs, logPerf } from '../utils/perf.js';
 
 const router = Router();
@@ -74,7 +75,7 @@ router.get('/feed', optionalAuthMiddleware, async (req: AuthenticatedRequest, re
     }
 
     const data = await timeRoute(`GET /news/feed`, () =>
-      newsService.getPersonalizedFeed(userInterests, userId, scope)
+      newsService.getPersonalizedFeed(userInterests, userId, scope, req.query.refresh === '1')
     );
     res.json(data);
   } catch (err) {
@@ -88,7 +89,7 @@ router.get('/category/:category', async (req, res, next) => {
     const { category } = req.params;
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
     const data = await timeRoute(`GET /news/category/${category}`, () =>
-      newsService.getNewsByCategory(category, scope)
+      newsService.getNewsByCategory(category, scope, req.query.refresh === '1')
     );
     res.json(data);
   } catch (err) {
@@ -101,7 +102,7 @@ router.get('/search', optionalAuthMiddleware, enforceGuestLimit('search'), async
   try {
     const query = (req.query.q as string) || '';
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
-    const data = await timeRoute('GET /news/search', () => newsService.searchNews(query, scope));
+    const data = await timeRoute('GET /news/search', () => newsService.searchNews(query, scope, req.query.refresh === '1'));
     res.json(data);
   } catch (err) {
     next(err);
@@ -112,7 +113,7 @@ router.get('/search', optionalAuthMiddleware, enforceGuestLimit('search'), async
 router.get('/trending', async (req, res, next) => {
   try {
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
-    const data = await timeRoute('GET /news/trending', () => newsService.getTrendingNews(scope));
+    const data = await timeRoute('GET /news/trending', () => newsService.getTrendingNews(scope, req.query.refresh === '1'));
     res.json(data);
   } catch (err) {
     next(err);
@@ -123,8 +124,27 @@ router.get('/trending', async (req, res, next) => {
 router.get('/clusters', async (req, res, next) => {
   try {
     const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
-    const clusterData = await timeRoute('GET /news/clusters', () => newsService.getStoryClusters(scope));
+    const category = req.query.category as string | undefined;
+    const clusterData = await timeRoute('GET /news/clusters', () =>
+      newsService.getStoryClusters(scope, category, req.query.refresh === '1')
+    );
     res.json(clusterData);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Social Signal Discovery Endpoint
+// Viral social content is a *lead*, never verified news. The response always
+// carries a VerificationStatus per signal and never blocks the main feed —
+// collection, verification and caching are all bounded and cached.
+router.get('/social-signals', async (req, res, next) => {
+  try {
+    const scope = (req.query.scope as 'india' | 'world' | 'all') || 'all';
+    const data = await timeRoute('GET /news/social-signals', () =>
+      socialSignalService.getSocialSignals(scope, req.query.refresh === '1')
+    );
+    res.json(data);
   } catch (err) {
     next(err);
   }

@@ -23,6 +23,49 @@ function resolveNewsApiCategory(category?: string): string {
   return NEWSAPI_CATEGORY_MAP[lower] || lower;
 }
 
+// NewsAPI top-headlines cannot express "global": a country is required and
+// omitting it silently defaults to US headlines. For the world/all scopes we
+// instead query a curated mix of international sources. `sources` cannot be
+// combined with `country` or `category`, so categorization is applied
+// downstream by the strict keyword filter (category is normalized as 'General'
+// here to avoid fooling that filter).
+const GLOBAL_NEWSAPI_SOURCES = [
+  'bbc-news',
+  'al-jazeera-english',
+  'associated-press',
+  'cnn',
+  'axios',
+  'independent',
+  'the-hindu',
+  'the-times-of-india',
+  'google-news-in',
+  'le-monde',
+  'liberation',
+  'spiegel-online',
+  'die-zeit',
+  'el-mundo',
+  'la-repubblica',
+  'ansa',
+  'globo',
+  'infobae',
+  'la-nacion',
+  'cbc-news',
+  'the-globe-and-mail',
+  'rte',
+  'the-irish-times',
+  'news24',
+  'ynet',
+  'the-jerusalem-post',
+  'ary-news',
+  'news-com-au',
+  'abc-news-au',
+  'nrk',
+  'aftenposten',
+  'rtl-nieuws',
+  'svenska-dagbladet',
+  'xinhua-net',
+].join(',');
+
 export class NewsAPIProvider implements NewsProvider {
   name = 'NewsAPI';
   private apiKey: string;
@@ -52,7 +95,10 @@ export class NewsAPIProvider implements NewsProvider {
     const country = options.country || 'in';
     const pageSize = options.limit || 20;
 
-    const url = `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&pageSize=${pageSize}&apiKey=${this.apiKey}`;
+    const global = country === 'global';
+    const url = global
+      ? `https://newsapi.org/v2/top-headlines?sources=${GLOBAL_NEWSAPI_SOURCES}&pageSize=${pageSize}&apiKey=${this.apiKey}`
+      : `https://newsapi.org/v2/top-headlines?country=${country}&category=${category}&pageSize=${pageSize}&apiKey=${this.apiKey}`;
 
     const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
     if (!response.ok) {
@@ -72,7 +118,7 @@ export class NewsAPIProvider implements NewsProvider {
       throw new Error(`NewsAPI invalid response structure`);
     }
 
-    return this.normalizeArticles(data.articles, options.category || 'General');
+    return this.normalizeArticles(data.articles, global ? 'General' : options.category || 'General');
   }
 
   async searchNews(query: string, options: NewsFetchOptions = {}): Promise<Article[]> {

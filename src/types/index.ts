@@ -105,6 +105,95 @@ export interface StoryCluster {
   };
 }
 
+export type SocialPlatform =
+  | 'instagram'
+  | 'x'
+  | 'youtube'
+  | 'facebook'
+  | 'reddit'
+  | 'telegram'
+  | 'web';
+
+export type SourceTier = 'A' | 'B' | 'C' | 'D';
+
+export type VerificationStatus =
+  | 'VERIFIED'
+  | 'CORROBORATED'
+  | 'DEVELOPING'
+  | 'SOCIAL_ONLY'
+  | 'UNVERIFIED'
+  | 'FALSE_MISLEADING';
+
+export interface SocialSignalScores {
+  viralityScore: number;
+  sourceReliabilityScore: number;
+  corroborationScore: number;
+  evidenceScore: number;
+  conflictScore: number;
+  freshnessScore: number;
+}
+
+export interface SocialVerificationSource {
+  name: string;
+  url?: string;
+  type: 'news' | 'official';
+  tier?: SourceTier;
+  publishedAt?: string;
+  contradictory?: boolean;
+}
+
+export interface SocialSignalPost {
+  id: string;
+  platform: SocialPlatform;
+  accountName: string;
+  accountHandle?: string;
+  accountTier: SourceTier;
+  url?: string;
+  postedAt: string;
+  text: string;
+  mediaUrls?: string[];
+  engagement?: { likes?: number; shares?: number; views?: number; comments?: number };
+  location?: string;
+  category?: string;
+}
+
+export interface SocialSignal {
+  id: string;
+  claim: string;
+  entities: string[];
+  location?: string;
+  eventType?: string;
+  category: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  postCount: number;
+  rawPostCount: number;
+  repostCount: number;
+  platforms: SocialPlatform[];
+  representativePost?: SocialSignalPost;
+  evidence: SocialSignalPost[];
+  scores: SocialSignalScores;
+  verificationStatus: VerificationStatus;
+  trustedCorroborations: number;
+  independentTrustedPublishers: number;
+  officialStatements: SocialVerificationSource[];
+  conflictingSources: SocialVerificationSource[];
+  verificationSources: SocialVerificationSource[];
+  lastVerifiedAt?: string;
+  mock?: boolean;
+  providerName?: string;
+}
+
+export interface SocialSignalsResponse {
+  signals: SocialSignal[];
+  generatedAt: string;
+  providers: string[];
+  mock: boolean;
+  rawPostsCollected: number;
+  stale: boolean;
+}
+
 export interface Bookmark {
   id: string;
   user_id: string;

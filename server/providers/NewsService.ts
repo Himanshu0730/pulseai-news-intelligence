@@ -9,6 +9,7 @@ import { calculateTextSimilarity } from '../utils/urlNormalizer.js';
 
 import { clusteringService } from '../services/clusteringService.js';
 import { deduplicationService } from '../services/deduplicationService.js';
+import { normalizeArticleRegions, GeoScope } from '../services/geoScopeService.js';
 import { misinformationService } from '../services/misinformationService.js';
 import { PersonalizationService, ScoredArticle } from '../services/personalizationService.js';
 import { ragService } from '../services/ragService.js';
@@ -47,11 +48,18 @@ export class NewsService {
   private static MIN_USABLE_ARTICLES = 8;
 
   // Map the geographic scope to an API-provider country code.
-  // 'india' -> India, 'world' -> US (proxy for international), 'all' -> provider default.
+  // 'india' -> India.
+  // 'world' and 'all' -> 'global' sentinel. The API providers interpret it as
+  // "no single country": GNews omits the country param (returns genuinely
+  // international coverage) and NewsAPI queries a curated mix of international
+  // sources instead of silently defaulting to US headlines. The RSS provider
+  // ignores country and always contributes both India and global feeds, so
+  // 'world' = global minus India (strict scope filter) and
+  // 'all' = global + India combined.
   private static SCOPE_COUNTRY: Record<'india' | 'world' | 'all', string | undefined> = {
     india: 'in',
-    world: 'us',
-    all: undefined,
+    world: 'global',
+    all: 'global',
   };
 
   constructor() {
@@ -157,36 +165,40 @@ export class NewsService {
     cacheKey: string,
     ttlSeconds: number,
     fetchFn: () => Promise<T>,
-    isEmpty: (data: T) => boolean
+    isEmpty: (data: T) => boolean,
+    forceRefresh = false
   ): Promise<T> {
     const peekT0 = Date.now();
-    const entry = await db.peekCachedNews(cacheKey);
-    const now = Date.now();
 
-    if (entry) {
-      if (now < entry.expires_at) {
-        logPerf(`Cache hit (fresh) ${cacheKey}`, elapsedMs(peekT0));
-        return entry.data;
+    if (!forceRefresh) {
+      const entry = await db.peekCachedNews(cacheKey);
+      const now = Date.now();
+
+      if (entry) {
+        if (now < entry.expires_at) {
+          logPerf(`Cache hit (fresh) ${cacheKey}`, elapsedMs(peekT0));
+          return entry.data;
+        }
+        if (now - entry.expires_at < NewsService.STALE_WINDOW_MS) {
+          logPerf(`Cache hit (stale) ${cacheKey}`, elapsedMs(peekT0));
+          this.rememberGood(cacheKey, entry.data);
+          this.refreshInBackground(cacheKey, ttlSeconds, fetchFn, isEmpty);
+          return entry.data;
+        }
       }
-      if (now - entry.expires_at < NewsService.STALE_WINDOW_MS) {
-        logPerf(`Cache hit (stale) ${cacheKey}`, elapsedMs(peekT0));
-        this.rememberGood(cacheKey, entry.data);
+
+      // Persisted cache expired beyond the stale window or is missing: fall back
+      // to the in-process last-good snapshot so the request never blocks on RSS.
+      const snapshot = this.lastGoodCache.get(cacheKey);
+      if (snapshot) {
+        logPerf(`Cache hit (snapshot) ${cacheKey}`, elapsedMs(peekT0));
         this.refreshInBackground(cacheKey, ttlSeconds, fetchFn, isEmpty);
-        return entry.data;
+        return snapshot.data as T;
       }
     }
 
-    // Persisted cache expired beyond the stale window or is missing: fall back
-    // to the in-process last-good snapshot so the request never blocks on RSS.
-    const snapshot = this.lastGoodCache.get(cacheKey);
-    if (snapshot) {
-      logPerf(`Cache hit (snapshot) ${cacheKey}`, elapsedMs(peekT0));
-      this.refreshInBackground(cacheKey, ttlSeconds, fetchFn, isEmpty);
-      return snapshot.data as T;
-    }
-
-    // Truly cold start: single-flight the expensive aggregation.
-    logPerf(`Cache miss ${cacheKey}`, elapsedMs(peekT0));
+    // Truly cold start or forced refresh: single-flight the expensive aggregation.
+    logPerf(`Cache ${forceRefresh ? 'refresh' : 'miss'} ${cacheKey}`, elapsedMs(peekT0));
     const inflight = this.pendingFetches.get(cacheKey);
     if (inflight) return inflight;
 
@@ -268,8 +280,13 @@ export class NewsService {
   }> {
     const pipelineT0 = Date.now();
     const targetLimit = options.limit || 25;
-    const { rawArticles, activeProviders, allProvidersSettled } = await this.aggregateFromAllProviders(options);
-    logPerf(`Aggregate (${rawArticles.length} raw)`, elapsedMs(pipelineT0));
+    const { rawArticles: rawCandidates, activeProviders, allProvidersSettled } = await this.aggregateFromAllProviders(options);
+    logPerf(`Aggregate (${rawCandidates.length} raw)`, elapsedMs(pipelineT0));
+
+    // Geographic normalization layer: API providers (GNews/NewsAPI) do not carry
+    // a `region` field, so infer one from the source/domain here. This gives the
+    // India/World/All scope filters accurate metadata for every article.
+    const rawArticles = normalizeArticleRegions(rawCandidates);
 
     // Filter by category if explicitly requested (STRICT CATEGORY ISOLATION)
     let candidatePool = rawArticles;
@@ -373,7 +390,8 @@ export class NewsService {
   async getPersonalizedFeed(
     interests: string[] = ['Technology', 'AI & ML', 'Business', 'Science'],
     userId?: string,
-    scope?: 'india' | 'world' | 'all'
+    scope?: GeoScope,
+    forceRefresh = false
   ): Promise<{ articles: ScoredArticle[]; activeProvider: string }> {
     const t0 = Date.now();
     const interactionTopics = userId ? await db.getUserInteractionTopics(userId) : {};
@@ -387,7 +405,8 @@ export class NewsService {
           limit: 35,
           country: NewsService.SCOPE_COUNTRY[scope || 'all'],
         }),
-      (d) => !d.articles || d.articles.length === 0
+      (d) => !d.articles || d.articles.length === 0,
+      forceRefresh
     );
 
     // Score and rank using multi-signal behavioral personalization engine
@@ -407,7 +426,8 @@ export class NewsService {
    */
   async getNewsByCategory(
     category: string,
-    scope?: 'india' | 'world' | 'all'
+    scope?: GeoScope,
+    forceRefresh = false
   ): Promise<{ articles: ScoredArticle[]; activeProvider: string }> {
     const t0 = Date.now();
     const cacheKey = `cat_v5_${category.toLowerCase()}_${scope || 'all'}`;
@@ -420,7 +440,8 @@ export class NewsService {
           limit: 25,
           country: NewsService.SCOPE_COUNTRY[scope || 'all'],
         }),
-      (d) => !d.articles || d.articles.length === 0
+      (d) => !d.articles || d.articles.length === 0,
+      forceRefresh
     );
 
     const scored = this.personalization.rankArticles(cached.articles, [category], {}, scope);
@@ -433,10 +454,11 @@ export class NewsService {
    */
   async searchNews(
     query: string,
-    scope?: 'india' | 'world' | 'all'
+    scope?: GeoScope,
+    forceRefresh = false
   ): Promise<{ articles: ScoredArticle[]; activeProvider: string }> {
     const trimmed = query.trim().toLowerCase();
-    if (!trimmed) return this.getPersonalizedFeed(['Technology', 'AI & ML', 'Business', 'Science'], undefined, scope);
+    if (!trimmed) return this.getPersonalizedFeed(['Technology', 'AI & ML', 'Business', 'Science'], undefined, scope, forceRefresh);
 
     const t0 = Date.now();
     const cacheKey = `search_v5_${trimmed}_${scope || 'all'}`;
@@ -449,7 +471,8 @@ export class NewsService {
           limit: 25,
           country: NewsService.SCOPE_COUNTRY[scope || 'all'],
         }),
-      (d) => !d.articles || d.articles.length === 0
+      (d) => !d.articles || d.articles.length === 0,
+      forceRefresh
     );
 
     const scored = this.personalization.rankArticles(cached.articles, [query], { [query]: 3 }, scope);
@@ -460,7 +483,7 @@ export class NewsService {
   /**
    * Signal-based Trending News & Dynamic Topics
    */
-  async getTrendingNews(scope?: 'india' | 'world' | 'all'): Promise<{ articles: ScoredArticle[]; topics: string[] }> {
+  async getTrendingNews(scope?: GeoScope, forceRefresh = false): Promise<{ articles: ScoredArticle[]; topics: string[] }> {
     const t0 = Date.now();
     const cacheKey = `trending_v5_${scope || 'all'}`;
     const cached = await this.swrCache(
@@ -471,7 +494,8 @@ export class NewsService {
           limit: 40,
           country: NewsService.SCOPE_COUNTRY[scope || 'all'],
         }),
-      (d) => !d.articles || d.articles.length === 0
+      (d) => !d.articles || d.articles.length === 0,
+      forceRefresh
     );
 
     const { trendingArticles, topDynamicTopics } = trendService.analyzeTrends(cached.articles);
@@ -500,15 +524,40 @@ export class NewsService {
   }
 
   /**
-   * Real Story Clustering Engine
+   * Real Story Clustering Engine. Optionally restricted to a single category so
+   * the category view also gets story clusters, not just a flat article feed.
    */
-  public async getStoryClusters(scope?: 'india' | 'world' | 'all'): Promise<{
+  public async getStoryClusters(
+    scope?: GeoScope,
+    category?: string,
+    forceRefresh = false
+  ): Promise<{
     clusters: StoryCluster[];
     unclustered: Article[];
   }> {
     const t0 = Date.now();
-    const feed = await this.getPersonalizedFeed(['India', 'Technology', 'Business', 'AI & ML'], undefined, scope);
-    const { clusters, unclusteredArticles } = clusteringService.clusterArticles(feed.articles);
+    const feed = await this.getPersonalizedFeed(['India', 'Technology', 'Business', 'AI & ML'], undefined, scope, forceRefresh);
+
+    let clusterSource: Article[] = feed.articles;
+    if (category && category.toLowerCase() !== 'all') {
+      const target = category.toLowerCase();
+      clusterSource = clusterSource.filter((a) => {
+        const artCat = (a.category || '').toLowerCase();
+        const artTitle = (a.title || '').toLowerCase();
+        const artDesc = (a.description || '').toLowerCase();
+        return (
+          artCat.includes(target) ||
+          target.includes(artCat) ||
+          artTitle.includes(target) ||
+          artDesc.includes(target)
+        );
+      });
+      if (clusterSource.length === 0) {
+        return { clusters: [], unclustered: [] };
+      }
+    }
+
+    const { clusters, unclusteredArticles } = clusteringService.clusterArticles(clusterSource);
     logPerf(`Clustering (${clusters.length} clusters)`, elapsedMs(t0));
 
     // Attach grounded briefings for top clusters with resilience guard.

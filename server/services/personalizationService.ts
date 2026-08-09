@@ -1,4 +1,5 @@
 import { Article } from '../providers/types.js';
+import { filterArticlesByScope, isIndiaArticle, GeoScope } from './geoScopeService.js';
 
 export interface ScoredArticle extends Article {
   personalizationScore: number;
@@ -21,7 +22,7 @@ export class PersonalizationService {
     articles: Article[],
     explicitInterests: string[] = ['Technology', 'AI & ML', 'Business', 'Science'],
     behavioralInteractionTopics: Record<string, number> = {},
-    scope?: 'india' | 'world' | 'all'
+    scope?: GeoScope
   ): ScoredArticle[] {
     const scored = articles.map((article) => {
       const text = `${article.title} ${article.description} ${article.category || ''} ${article.source?.name || ''}`.toLowerCase();
@@ -52,13 +53,9 @@ export class PersonalizationService {
 
       // 3. Geographic Relevance (0 - 100)
       let geographicRelevance = 35; // Default international base
-      const indiaKeywords = [
-        'india', 'indian', 'delhi', 'mumbai', 'bengaluru', 'bangalore', 'isro', 'rbi', 'upi',
-        'ondc', 'pib', 'pune', 'hyderabad', 'chennai', 'gujarat', 'assam', 'maharashtra'
-      ];
-      const isIndiaArticle = article.region === 'India' || article.region === 'Indian State' || indiaKeywords.some((k) => text.includes(k));
+      const isIndiaArticleFlag = isIndiaArticle(article);
 
-      if (isIndiaArticle) {
+      if (isIndiaArticleFlag) {
         geographicRelevance = 100;
       } else if (article.region === 'South Asia') {
         geographicRelevance = 75;
@@ -96,11 +93,11 @@ export class PersonalizationService {
       let tag = 'Recommended story';
       if (matchedBehaviorTopic && behavioralMatch > 50) {
         tag = `Recommended because you frequently read ${matchedBehaviorTopic}`;
-      } else if (matchedInterest && isIndiaArticle) {
+      } else if (matchedInterest && isIndiaArticleFlag) {
         tag = `Matched to your ${matchedInterest} preference • India Priority`;
       } else if (matchedInterest) {
         tag = `Matched to your ${matchedInterest} preference`;
-      } else if (isIndiaArticle) {
+      } else if (isIndiaArticleFlag) {
         tag = 'India Headlines & Regional Relevance';
       } else if (freshness > 85) {
         tag = 'Fresh Breaking Coverage';
@@ -121,19 +118,8 @@ export class PersonalizationService {
       };
     });
 
-    // Apply scope filter
-    let filtered = scored;
-    if (scope === 'india') {
-      const indiaKeywords = ['india', 'indian', 'delhi', 'mumbai', 'bengaluru', 'isro', 'rbi', 'upi', 'pib'];
-      filtered = scored.filter((a) => {
-        const text = `${a.title} ${a.description}`.toLowerCase();
-        return a.region === 'India' || a.region === 'Indian State' || indiaKeywords.some((k) => text.includes(k));
-      });
-      if (filtered.length === 0) filtered = scored;
-    } else if (scope === 'world') {
-      filtered = scored.filter((a) => a.region !== 'India' && a.region !== 'Indian State');
-      if (filtered.length === 0) filtered = scored;
-    }
+    // Apply the strict geographic scope filter (region-based, no lenient fallback).
+    const filtered = filterArticlesByScope(scored, scope);
 
     filtered.sort((a, b) => b.personalizationScore - a.personalizationScore);
     return filtered;

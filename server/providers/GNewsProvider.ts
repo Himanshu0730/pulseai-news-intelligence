@@ -51,7 +51,10 @@ export class GNewsProvider implements NewsProvider {
     const category = resolveGNewsCategory(options.category);
     const limit = options.limit || 15;
     const country = options.country || 'in';
-    const url = `https://gnews.io/api/v4/top-headlines?category=${category}&lang=en&country=${country}&max=${limit}&apikey=${this.apiKey}`;
+    // 'global' means no single country: omit the country param so GNews returns
+    // genuinely international coverage instead of one country's headlines.
+    const countryParam = country === 'global' ? '' : `&country=${country}`;
+    const url = `https://gnews.io/api/v4/top-headlines?category=${category}&lang=en${countryParam}&max=${limit}&apikey=${this.apiKey}`;
 
     const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
     if (!response.ok) {
