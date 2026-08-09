@@ -179,13 +179,15 @@ router.post('/rag/briefing', optionalAuthMiddleware, enforceGuestLimit('ai'), as
 });
 
 // Compare Coverage Endpoint
+// Accepts either a single article, a list of related articles, or a story cluster
+// so the comparison runs over every genuinely distinct source covering the story.
 router.post('/compare-coverage', async (req, res, next) => {
   try {
-    const { article } = req.body;
-    if (!article) {
-      return res.status(400).json({ error: 'Article object required for comparison' });
+    const { article, articles, cluster } = req.body || {};
+    if (!article && !articles && !cluster) {
+      return res.status(400).json({ error: 'Article or story articles required for comparison' });
     }
-    const comparison = newsService.generateCoverageComparison(article);
+    const comparison = newsService.generateCoverageComparison({ article, articles, cluster });
     res.json(comparison);
   } catch (err) {
     next(err);

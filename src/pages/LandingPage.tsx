@@ -471,7 +471,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onExplore, onGetStarte
               P
             </div>
             <span className="font-semibold text-slate-200 text-sm">{t('brandName')}</span>
-            <span className="text-slate-500">• {t('brandTagline')}</span>
+            <span className="text-slate-400">• {t('brandTagline')}</span>
           </div>
 
           <div className="flex items-center gap-6 text-slate-400">

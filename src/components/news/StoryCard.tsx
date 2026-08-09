@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext';
 interface StoryCardProps {
   cluster: StoryCluster;
   onOpenStory: (cluster: StoryCluster) => void;
-  onCompareCoverage?: (article: Article) => void;
+  onCompareCoverage?: (article: Article, relatedArticles: Article[]) => void;
 }
 
 export const StoryCard: React.FC<StoryCardProps> = ({ cluster, onOpenStory, onCompareCoverage }) => {
@@ -220,7 +220,7 @@ export const StoryCard: React.FC<StoryCardProps> = ({ cluster, onOpenStory, onCo
 
         {onCompareCoverage && (
           <button
-            onClick={() => onCompareCoverage(rep)}
+            onClick={() => onCompareCoverage(rep, cluster.articles)}
             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
           >
             <Scale className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />

@@ -170,8 +170,11 @@ export const ViralSignalsSection: React.FC<ViralSignalsSectionProps> = ({ scope 
   useEffect(() => {
     let cancelled = false;
     const forced = refreshToken > 0;
+    // Hard refresh must reach the server too (refresh=1 bypasses the server-side
+    // social-signal cache), not just the client cache.
+    const refreshParam = forced ? '&refresh=1' : '';
     api
-      .get<SocialSignalsResponse>(`/news/social-signals?scope=${scope}`, { refresh: forced })
+      .get<SocialSignalsResponse>(`/news/social-signals?scope=${scope}${refreshParam}`, { refresh: forced })
       .then((res) => {
         if (!cancelled) setData(res);
       })

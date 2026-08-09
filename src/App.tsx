@@ -40,6 +40,18 @@ const MainLayout: React.FC = () => {
     setActiveView('feed');
   };
 
+  // Single shared search handler. Every search entry point (navbar submit,
+  // trending topic chip, in-feed search) routes through this path so the query
+  // and the view stay in sync: a search from the Trending view always lands back
+  // on the normal search/feed view (title/subtitle included), while searches
+  // from India/World stay scoped to those views.
+  const handleSearchChange = (q: string) => {
+    setSearchQuery(q);
+    if (activeView !== 'feed' && activeView !== 'india' && activeView !== 'world') {
+      setActiveView('feed');
+    }
+  };
+
   return (
     <div className="min-h-screen font-sans antialiased bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       {/* Shell Headers: Public Shell vs App Shell */}
@@ -54,12 +66,7 @@ const MainLayout: React.FC = () => {
       ) : (
         <Navbar
           searchQuery={searchQuery}
-          onSearchChange={(q) => {
-            setSearchQuery(q);
-            if (activeView !== 'feed' && activeView !== 'india' && activeView !== 'world') {
-              setActiveView('feed');
-            }
-          }}
+          onSearchChange={handleSearchChange}
           activeView={activeView}
           onViewChange={setActiveView}
           onOpenProfile={() => setIsProfileOpen(true)}
@@ -81,7 +88,7 @@ const MainLayout: React.FC = () => {
         ) : (
           <HomePage
             searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
+            onSearchChange={handleSearchChange}
             onOpenProfile={() => setIsProfileOpen(true)}
             activeView={activeView}
           />

@@ -591,10 +591,72 @@ export class NewsService {
   }
 
   /**
-   * Generate cross-source coverage comparison
+   * Generate cross-source coverage comparison.
+   *
+   * The comparison runs over the set of genuinely distinct reporting sources that
+   * cover the same story. When the caller has a story cluster, the cluster's
+   * member articles are used; otherwise the supplied articles array (or a single
+   * article) is the source set. Duplicate publishers (e.g. syndicated copies of
+   * one report) are collapsed so a single wire report never counts as real
+   * "coverage". When fewer than 2 distinct sources are available the response
+   * stays honest instead of fabricating a comparison.
+   *
+   * The response always preserves the modal contract:
+   *   { previousCoverage, latestCoverage, whatChanged }
+   * plus sufficientCoverage so the UI can render
+   * "Not enough independent coverage to compare yet."
    */
-  public generateCoverageComparison(article: Article) {
-    return ragService.generateWhatChanged([article]);
+  public generateCoverageComparison(
+    payload?: { article?: Article; articles?: Article[]; cluster?: StoryCluster } | Article | null
+  ): {
+    previousCoverage: string;
+    latestCoverage: string;
+    whatChanged: string;
+    sufficientCoverage: boolean;
+    message?: string;
+    sourceCount: number;
+  } {
+    let candidates: Article[] = [];
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      const p = payload as { article?: Article; articles?: Article[]; cluster?: StoryCluster } & Article;
+      if (Array.isArray(p.articles)) {
+        candidates = p.articles;
+      } else if (p.cluster && Array.isArray(p.cluster.articles)) {
+        candidates = p.cluster.articles;
+      } else if (p.article && typeof p.article === 'object') {
+        candidates = [p.article];
+      } else if (typeof p.title === 'string' && p.source && typeof p.source.name === 'string') {
+        candidates = [p as Article];
+      }
+    }
+
+    // Collapse to genuinely distinct publishers so syndicated copies of a single
+    // report can never inflate the source count.
+    const seen = new Set<string>();
+    const distinct: Article[] = [];
+    for (const a of candidates) {
+      if (!a || typeof a !== 'object') continue;
+      const key = String(((a.source?.name || '').trim() || a.id || '')).toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        distinct.push(a);
+      }
+    }
+
+    if (distinct.length < 2) {
+      const single = distinct[0];
+      return {
+        previousCoverage: single?.description || single?.title || '',
+        latestCoverage: single?.description || single?.title || '',
+        whatChanged: 'Not enough independent coverage to compare yet.',
+        sufficientCoverage: false,
+        message: 'Not enough independent coverage to compare yet.',
+        sourceCount: distinct.length,
+      };
+    }
+
+    const result = ragService.generateWhatChanged(distinct);
+    return { ...result, sufficientCoverage: true, sourceCount: distinct.length };
   }
 }
 

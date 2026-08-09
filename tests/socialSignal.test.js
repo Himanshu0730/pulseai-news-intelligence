@@ -262,3 +262,28 @@ test('17. Search queries are built from entities + location, and heuristics tag 
   assert.strictEqual(factCheck.contradictory, true);
   assert.strictEqual(factCheck.tier, 'B');
 });
+
+test('18. getSocialSignals(scope, forceRefresh=true) bypasses a fresh cache and re-collects fresh data', async () => {
+  const provider = new FakeProvider(FIRE_POSTS);
+  const verification = VERIFY([]);
+  const service = new SocialSignalService([provider], { verification });
+
+  const first = await service.getSocialSignals('india');
+  assert.ok(first.signals.length > 0, 'first fetch should produce signals');
+  const countAfterFirst = provider.fetchCount;
+
+  const cached = await service.getSocialSignals('india');
+  assert.strictEqual(cached.signals.length, first.signals.length, 'cache hit returns the same payload');
+  assert.strictEqual(provider.fetchCount, countAfterFirst, 'a fresh cache hit must not re-fetch');
+
+  // A forced refresh (the client sends ?refresh=1) must bypass the server cache.
+  const forced = await service.getSocialSignals('india', true);
+  assert.strictEqual(provider.fetchCount, countAfterFirst + 1, 'forceRefresh must bypass the fresh cache and re-collect');
+  assert.ok(forced.generatedAt >= first.generatedAt, 'forced payload is freshly generated');
+  assert.strictEqual(forced.signals.length, first.signals.length, 'forced payload repopulates the same scope');
+
+  // After the forced refresh, the fresh cache serves the refreshed payload.
+  const after = await service.getSocialSignals('india');
+  assert.strictEqual(provider.fetchCount, countAfterFirst + 1, 'post-refresh cache hit does not re-fetch');
+  assert.strictEqual(after.signals.length, forced.signals.length);
+});

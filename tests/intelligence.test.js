@@ -86,6 +86,51 @@ test('Real Story Clustering Engine', () => {
   assert.strictEqual(clusters[0].distinctPublisherCount, 2, 'Cluster should track 2 distinct publishers');
 });
 
+test('Clustering keeps unrelated stories as unclustered (never silently lost)', () => {
+  const articles = [
+    {
+      id: 'art_uncl_1',
+      title: 'ISRO launches Gaganyaan crew escape test successfully',
+      description: 'ISRO tested the crew escape system in flight today.',
+      content: 'Full body 1',
+      url: 'https://pib.gov.in/3',
+      urlToImage: 'img.jpg',
+      publishedAt: new Date().toISOString(),
+      source: { name: 'PIB' },
+      category: 'Science',
+      region: 'India',
+    },
+    {
+      id: 'art_uncl_2',
+      title: 'Gaganyaan crew escape test successful, says ISRO',
+      description: 'The escape test validated crew safety systems.',
+      content: 'Full body 2',
+      url: 'https://thehindu.com/4',
+      urlToImage: 'img.jpg',
+      publishedAt: new Date().toISOString(),
+      source: { name: 'The Hindu' },
+      category: 'Science',
+      region: 'India',
+    },
+    {
+      id: 'art_uncl_3',
+      title: 'Monsoon session of parliament adjourned',
+      description: 'Parliament debate on the finance bill was cut short.',
+      content: 'Full body 3',
+      url: 'https://timesnow.com/5',
+      urlToImage: 'img.jpg',
+      publishedAt: new Date().toISOString(),
+      source: { name: 'Times Now' },
+      category: 'World News',
+    },
+  ];
+
+  const { clusters, unclusteredArticles } = clusteringService.clusterArticles(articles);
+  assert.ok(clusters.length >= 1, 'related stories should still cluster together');
+  assert.ok(clusters.some((cl) => cl.articles.length >= 2), 'the two ISRO reports cluster into one story');
+  assert.ok(unclusteredArticles.some((a) => a.id === 'art_uncl_3'), 'the unrelated story remains visible as unclustered, never dropped');
+});
+
 test('Signal-Based Trend Detection', () => {
   const articles = [
     {

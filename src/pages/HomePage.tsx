@@ -43,6 +43,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<Category>('All');
   const [articles, setArticles] = useState<Article[]>([]);
   const [storyClusters, setStoryClusters] = useState<StoryCluster[]>([]);
+  const [unclusteredArticles, setUnclusteredArticles] = useState<Article[]>([]);
   const [trendingArticles, setTrendingArticles] = useState<Article[]>([]);
   const [trendingTopics, setTrendingTopics] = useState<string[]>([]);
   const [activeProvider, setActiveProvider] = useState<string>('News Intelligence Engine');
@@ -81,6 +82,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [selectedStoryCluster, setSelectedStoryCluster] = useState<StoryCluster | null>(null);
   const [selectedArticleDetail, setSelectedArticleDetail] = useState<Article | null>(null);
   const [compareArticle, setCompareArticle] = useState<Article | null>(null);
+  const [compareRelatedArticles, setCompareRelatedArticles] = useState<Article[]>([]);
   const [summaryArticle, setSummaryArticle] = useState<Article | null>(null);
   const [summaryData, setSummaryData] = useState<AISummary | null>(null);
   const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(false);
@@ -165,23 +167,30 @@ export const HomePage: React.FC<HomePageProps> = ({
       const clustersT0 = performance.now();
       const shouldFetch = feedMode === 'stories' && !searchQuery.trim();
       if (!shouldFetch) {
-        if (seq === feedRequestSeq.current) setStoryClusters([]);
+        if (seq === feedRequestSeq.current) {
+          setStoryClusters([]);
+          setUnclusteredArticles([]);
+        }
         return;
       }
       try {
         const categoryParam =
           selectedCategory !== 'All' ? `&category=${encodeURIComponent(selectedCategory)}` : '';
-        const res = await api.get<{ clusters: StoryCluster[] }>(
+        const res = await api.get<{ clusters: StoryCluster[]; unclustered?: Article[] }>(
           `/news/clusters?scope=${currentScope}${categoryParam}${freshParam}`,
           refreshOpt
         );
         if (seq !== feedRequestSeq.current) return;
         logPerf('Story Clusters', performance.now() - clustersT0, `${res.clusters?.length || 0} clusters`);
         setStoryClusters(res.clusters || []);
+        // Articles that failed clustering are rendered as an "Other Stories"
+        // section so no story silently disappears from the clusters view.
+        setUnclusteredArticles(res.unclustered || []);
       } catch (err) {
         if (seq !== feedRequestSeq.current) return;
         console.warn('Failed to load story clusters, proceeding with feed:', err);
         setStoryClusters([]);
+        setUnclusteredArticles([]);
       } finally {
         if (seq === feedRequestSeq.current && !hasExisting) setIsLoading(false);
       }
@@ -229,7 +238,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   // Reset the progressive-render window whenever a new dataset arrives.
   useEffect(() => {
     setRenderCount(INITIAL_RENDER_COUNT);
-  }, [articles, trendingArticles, storyClusters]);
+  }, [articles, trendingArticles, storyClusters, unclusteredArticles]);
 
   // Perf: measure the time from feed request launch to first content commit.
   useEffect(() => {
@@ -460,11 +469,44 @@ export const HomePage: React.FC<HomePageProps> = ({
                     key={cluster.clusterId}
                     cluster={cluster}
                     onOpenStory={(cls) => setSelectedStoryCluster(cls)}
-                    onCompareCoverage={(art) => setCompareArticle(art)}
+                    onCompareCoverage={(art, related) => {
+                      setCompareArticle(art);
+                      setCompareRelatedArticles(related || []);
+                    }}
                   />
                 ))}
                 {storyClusters.length > renderCount && (
                   <div ref={renderSentinelRef} className="h-2 w-full" aria-hidden="true" />
+                )}
+                {unclusteredArticles.length > 0 && (
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between mb-3 px-1">
+                      <span className="text-xs font-mono uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">
+                        Other Stories ({unclusteredArticles.length})
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        Single-outlet stories awaiting corroboration
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 auto-rows-fr">
+                      {unclusteredArticles.slice(0, renderCount).map((article) => (
+                        <ArticleCard
+                          key={article.id}
+                          article={article}
+                          variant="standard"
+                          onSelectArticle={handleSelectArticle}
+                          onRequestSummary={handleRequestSummary}
+                          onCompareCoverage={(art) => {
+                            setCompareArticle(art);
+                            setCompareRelatedArticles([]);
+                          }}
+                        />
+                      ))}
+                    </div>
+                    {unclusteredArticles.length > renderCount && (
+                      <div ref={renderSentinelRef} className="h-2 w-full" aria-hidden="true" />
+                    )}
+                  </div>
                 )}
               </div>
             ) : displayedArticles.length === 0 ? (
@@ -495,7 +537,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                     variant="hero"
                     onSelectArticle={handleSelectArticle}
                     onRequestSummary={handleRequestSummary}
-                    onCompareCoverage={(art) => setCompareArticle(art)}
+                    onCompareCoverage={(art) => {
+                      setCompareArticle(art);
+                      setCompareRelatedArticles([]);
+                    }}
                   />
                 )}
 
@@ -514,7 +559,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                           variant="standard"
                           onSelectArticle={handleSelectArticle}
                           onRequestSummary={handleRequestSummary}
-                          onCompareCoverage={(art) => setCompareArticle(art)}
+                          onCompareCoverage={(art) => {
+                            setCompareArticle(art);
+                            setCompareRelatedArticles([]);
+                          }}
                         />
                       ))}
                     </div>
@@ -572,8 +620,12 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* Compare Coverage Modal */}
       <CompareCoverageModal
         article={compareArticle}
+        relatedArticles={compareRelatedArticles}
         isOpen={!!compareArticle}
-        onClose={() => setCompareArticle(null)}
+        onClose={() => {
+          setCompareArticle(null);
+          setCompareRelatedArticles([]);
+        }}
       />
 
       {/* AI Summary Modal */}

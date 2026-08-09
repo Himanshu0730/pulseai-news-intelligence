@@ -2,21 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { AlertCircle, ExternalLink, HelpCircle, History, Layers, Newspaper, RefreshCw, Scale, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { Article } from '../../types';
+import { CoverageData, normalizeCoverageData } from './coverageData';
 
 interface CompareCoverageModalProps {
   article: Article | null;
+  /** Additional articles covering the same story (e.g. a story cluster's members). */
+  relatedArticles?: Article[];
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface CoverageData {
-  previousCoverage: string;
-  latestCoverage: string;
-  whatChanged: string;
-}
-
 export const CompareCoverageModal: React.FC<CompareCoverageModalProps> = ({
   article,
+  relatedArticles = [],
   isOpen,
   onClose,
 }) => {
@@ -29,8 +27,8 @@ export const CompareCoverageModal: React.FC<CompareCoverageModalProps> = ({
     setIsLoading(true);
     setError(null);
     setData(null);
-    api.post<CoverageData>('/news/compare-coverage', { article })
-      .then((res) => setData(res))
+    api.post<CoverageData>('/news/compare-coverage', { article, articles: relatedArticles })
+      .then((res) => setData(normalizeCoverageData(res)))
       .catch((err) => {
         console.error('Coverage comparison error', err);
         setError('The coverage comparison could not be generated right now.');
@@ -42,7 +40,7 @@ export const CompareCoverageModal: React.FC<CompareCoverageModalProps> = ({
     if (isOpen && article) {
       loadComparison();
     }
-  }, [isOpen, article]);
+  }, [isOpen, article, relatedArticles]);
 
   if (!isOpen || !article) return null;
 
@@ -109,7 +107,7 @@ export const CompareCoverageModal: React.FC<CompareCoverageModalProps> = ({
               Try Again
             </button>
           </div>
-        ) : data ? (
+        ) : data && data.sufficientCoverage ? (
           <div className="space-y-4 text-xs sm:text-sm">
 
             {/* Earlier Coverage */}
@@ -158,7 +156,25 @@ export const CompareCoverageModal: React.FC<CompareCoverageModalProps> = ({
             )}
 
           </div>
-        ) : null}
+        ) : data ? (
+          /* Honest insufficient-coverage state: fewer than 2 distinct sources. */
+          <div className="p-6 rounded-xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+            <HelpCircle className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+              {data.message || 'Not enough independent coverage to compare yet.'}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+              Compare Coverage needs at least two genuinely distinct reporting outlets covering the same story. As more
+              independent sources report it, this comparison will populate automatically.
+            </p>
+          </div>
+        ) : (
+          <div className="p-6 rounded-xl bg-slate-50/60 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 text-center">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Coverage comparison data is currently unavailable.
+            </p>
+          </div>
+        )}
 
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <span className="text-[11px] text-slate-400 font-mono">
