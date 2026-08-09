@@ -238,7 +238,7 @@ export const ViralSignalsSection: React.FC<ViralSignalsSectionProps> = ({ scope 
         ))}
       </div>
 
-      <p className="text-[10px] text-slate-500 dark:text-slate-500 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800">
+      <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed pt-1 border-t border-slate-100 dark:border-slate-800">
         {t('viralSignals.disclaimer') || 'PulseAI scans social channels only as early-warning leads. Nothing on this card is presented as verified news until corroborated by trusted reporting or official sources.'}
       </p>
     </div>

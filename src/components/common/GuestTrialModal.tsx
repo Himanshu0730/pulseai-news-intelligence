@@ -73,7 +73,7 @@ export const GuestTrialModal: React.FC<GuestTrialModalProps> = ({ activeView }) 
               </button>
             </div>
 
-            <div className="text-[11px] text-slate-400 dark:text-slate-500 pt-1">
+            <div className="text-[11px] text-slate-400 dark:text-slate-400 pt-1">
               Free account includes unlimited searches, personalized interest feeds, and bookmarking.
             </div>
           </div>
