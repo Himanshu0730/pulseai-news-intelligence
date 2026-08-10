@@ -83,7 +83,11 @@ export class GNewsProvider implements NewsProvider {
     this.checkCooldown();
 
     const limit = options.limit || 15;
-    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en&max=${limit}&apikey=${this.apiKey}`;
+    const country = options.country || 'in';
+    // 'global' means no single country: omit the country param so GNews search
+    // returns genuinely international coverage instead of one country's articles.
+    const countryParam = country === 'global' ? '' : `&country=${country}`;
+    const url = `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=en${countryParam}&max=${limit}&apikey=${this.apiKey}`;
 
     const response = await fetch(url, { signal: AbortSignal.timeout(2500) });
     if (!response.ok) {
